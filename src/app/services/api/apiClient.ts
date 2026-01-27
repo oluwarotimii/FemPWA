@@ -32,6 +32,15 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('authToken');
       window.location.href = '/login';
     }
+
+    // Format error response according to API documentation
+    if (error.response?.data) {
+      // The API follows a consistent error response format
+      // { success: false, message: "Error description", error: {...} }
+      error.apiError = error.response.data;
+    }
+
+    // Return the error to be handled by the calling function
     return Promise.reject(error);
   }
 );

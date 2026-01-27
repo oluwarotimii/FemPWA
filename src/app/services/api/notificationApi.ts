@@ -11,14 +11,10 @@ interface Notification {
 
 export const notificationApi = {
   // Get notifications for the authenticated user
-  getNotifications: async (params?: { 
-    limit?: number; 
-    page?: number; 
-    unread_only?: boolean 
-  }): Promise<{ 
-    success: boolean; 
-    message: string; 
-    data: { 
+  getNotifications: async (params?: { limit?: number; page?: number; unread_only?: boolean }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
       notifications: Notification[];
       pagination?: {
         currentPage: number;
@@ -26,7 +22,7 @@ export const notificationApi = {
         totalItems: number;
         itemsPerPage: number;
       };
-    } 
+    }
   }> => {
     const response = await apiClient.get('/notifications', { params });
     return response.data;

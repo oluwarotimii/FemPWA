@@ -1,9 +1,20 @@
 import apiClient from './apiClient';
-import { User } from '@/app/contexts/AuthContext';
 
 interface LoginCredentials {
   email: string;
   password: string;
+}
+
+interface User {
+  id: number;
+  email: string;
+  full_name: string;
+  role_id: number;
+  branch_id: number;
+}
+
+interface Permissions {
+  [key: string]: boolean;
 }
 
 interface LoginResponse {
@@ -12,7 +23,7 @@ interface LoginResponse {
   data: {
     token: string;
     user: User;
-    permissions: Record<string, boolean>;
+    permissions: Permissions;
   };
 }
 

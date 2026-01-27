@@ -1,20 +1,20 @@
 import apiClient from './apiClient';
 
-interface StaffProfile {
+interface Staff {
   id: number;
   user_id: number;
   full_name: string;
   email: string;
-  phone?: string;
-  designation?: string;
-  department?: string;
-  branch?: string;
-  date_joined?: string;
+  phone: string;
+  designation: string;
+  department: string;
+  branch: string;
+  date_joined: string;
   status: string;
   profile_picture?: string;
 }
 
-interface UpdateProfileRequest {
+interface UpdateStaffRequest {
   phone?: string;
   address?: string;
   emergency_contact?: string;
@@ -22,17 +22,13 @@ interface UpdateProfileRequest {
 
 export const staffApi = {
   // Get staff profile information
-  getProfile: async (id: number): Promise<{ success: boolean; message: string; data: { staff: StaffProfile } }> => {
+  getStaffProfile: async (id: number): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
     const response = await apiClient.get(`/staff/${id}`);
     return response.data;
   },
 
   // Update staff profile information
-  updateProfile: async (id: number, request: UpdateProfileRequest): Promise<{ 
-    success: boolean; 
-    message: string; 
-    data: { staff: StaffProfile } 
-  }> => {
+  updateStaffProfile: async (id: number, request: UpdateStaffRequest): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
     const response = await apiClient.put(`/staff/${id}`, request);
     return response.data;
   },

@@ -4,4 +4,6 @@ export { leaveApi } from './leaveApi';
 export { staffApi } from './staffApi';
 export { notificationApi } from './notificationApi';
 export { formsApi } from './formsApi';
+export { performanceApi } from './performanceApi';
+export { targetsApi } from './targetsApi';
 export { default as apiClient } from './apiClient';

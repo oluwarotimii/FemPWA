@@ -43,10 +43,10 @@ export const leaveApi = {
   },
 
   // Get leave requests for the authenticated user
-  getLeaveRequests: async (params?: { status?: string; limit?: number; page?: number }): Promise<{ 
-    success: boolean; 
-    message: string; 
-    data: { 
+  getMyLeaveRequests: async (params?: { status?: string; limit?: number; page?: number }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
       leaveRequests: LeaveRequest[];
       pagination?: {
         currentPage: number;
@@ -54,17 +54,17 @@ export const leaveApi = {
         totalItems: number;
         itemsPerPage: number;
       };
-    } 
+    }
   }> => {
     const response = await apiClient.get('/leave', { params });
     return response.data;
   },
 
   // Submit a new leave request
-  submitLeaveRequest: async (request: LeaveRequestInput): Promise<{ 
-    success: boolean; 
-    message: string; 
-    data: { leaveRequest: LeaveRequest } 
+  submitLeaveRequest: async (request: LeaveRequestInput): Promise<{
+    success: boolean;
+    message: string;
+    data: { leaveRequest: LeaveRequest }
   }> => {
     const response = await apiClient.post('/leave', request);
     return response.data;

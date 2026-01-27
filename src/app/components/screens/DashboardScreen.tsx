@@ -24,7 +24,7 @@ export function DashboardScreen() {
     // Fetch attendance records on mount
     const fetchAttendance = async () => {
       try {
-        const response = await attendanceApi.getAttendance({ limit: 5 });
+        const response = await attendanceApi.getMyAttendance({ limit: 5 });
         setAttendanceRecords(response.data.attendance);
       } catch (error) {
         console.error('Failed to fetch attendance records:', error);
@@ -33,9 +33,10 @@ export function DashboardScreen() {
           {
             id: '1',
             date: new Date().toISOString().split('T')[0],
-            clock_in: '09:00',
-            clock_out: null,
+            check_in_time: '09:00',
+            check_out_time: null,
             status: 'present',
+            location: 'Office',
             hours_worked: 0
           }
         ]);
@@ -53,23 +54,41 @@ export function DashboardScreen() {
   useEffect(() => {
     if (attendanceRecords.length > 0) {
       const lastRecord = attendanceRecords[0];
-      setIsClocked(lastRecord.clock_out === null);
+      setIsClocked(lastRecord.check_out_time === null);
     }
   }, [attendanceRecords]);
 
   const handleClockAction = async () => {
     try {
-      const status = isClocked ? 'clock_out' : 'clock_in';
-      const response = await attendanceApi.markAttendance({ status });
+      if (isClocked) {
+        // Check out
+        const checkOutData = {
+          date: new Date().toISOString().split('T')[0],
+          check_out_time: new Date().toTimeString().substring(0, 8),
+          location: 'Office'
+        };
+        const response = await attendanceApi.checkOut(checkOutData);
 
-      toast.success(response.message, {
-        description: isClocked
-          ? `Successfully clocked out at ${new Date().toLocaleTimeString()}`
-          : `Welcome back, ${user?.full_name}!`
-      });
+        toast.success(response.message, {
+          description: `Successfully clocked out at ${new Date().toLocaleTimeString()}`
+        });
+      } else {
+        // Check in
+        const checkInData = {
+          date: new Date().toISOString().split('T')[0],
+          check_in_time: new Date().toTimeString().substring(0, 8),
+          location: 'Office',
+          status: 'present'
+        };
+        const response = await attendanceApi.checkIn(checkInData);
+
+        toast.success(response.message, {
+          description: `Welcome back, ${user?.full_name}!`
+        });
+      }
 
       // Refresh attendance records after clock action
-      const updatedResponse = await attendanceApi.getAttendance({ limit: 5 });
+      const updatedResponse = await attendanceApi.getMyAttendance({ limit: 5 });
       setAttendanceRecords(updatedResponse.data.attendance);
 
       // Toggle clock status
@@ -217,7 +236,7 @@ export function DashboardScreen() {
                       })}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {record.clock_in} - {record.clock_out || 'In Progress'}
+                      {record.check_in_time} - {record.check_out_time || 'In Progress'}
                     </div>
                   </div>
                   <div className="text-right">

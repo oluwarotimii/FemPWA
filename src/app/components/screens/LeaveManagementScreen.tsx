@@ -16,8 +16,8 @@ export function LeaveManagementScreen() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch leave requests
-        const requestsResponse = await leaveApi.getLeaveRequests();
+        // Fetch leave requests for the authenticated user
+        const requestsResponse = await leaveApi.getMyLeaveRequests();
         setLeaveRequests(requestsResponse.data.leaveRequests);
 
         // Fetch leave types to show balances
@@ -50,7 +50,7 @@ export function LeaveManagementScreen() {
             submitted_at: '2026-01-20T10:00:00Z'
           }
         ]);
-        
+
         setLeaveTypes([
           {
             id: 1,

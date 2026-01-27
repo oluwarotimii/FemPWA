@@ -2,7 +2,7 @@ import { createContext, useContext, useState, ReactNode } from 'react';
 import { authApi } from '@/app/services/api';
 
 interface User {
-  id: string;
+  id: number;
   email: string;
   full_name: string;
   role_id: number;
@@ -33,11 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Store the token
       localStorage.setItem('authToken', response.data.token);
-      localStorage.setItem('userId', userData.id);
+      localStorage.setItem('userId', userData.id.toString());
     } catch (error) {
       // Fallback to mock implementation for development
       const mockUser: User = {
-        id: '1',
+        id: 1,
         email: email,
         full_name: 'Sarah Johnson',
         role_id: 4,
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(mockUser);
       if (rememberMe) {
         localStorage.setItem('authToken', 'mock-token');
-        localStorage.setItem('userId', mockUser.id);
+        localStorage.setItem('userId', mockUser.id.toString());
       } else {
         throw new Error('Invalid credentials');
       }
