@@ -1,27 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, CheckCheck, Calendar, AlertCircle, Info } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
-import { notifications } from '@/app/services/mockData';
+import { notificationApi } from '@/app/services/api';
 import { toast } from 'sonner';
 
 export function NotificationsScreen() {
-  const [notificationsList, setNotificationsList] = useState(notifications);
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        console.log('Fetching notifications...'); // Debug log
+        console.log('Current token:', localStorage.getItem('authToken')); // Debug log
+        const response = await notificationApi.getNotifications({ limit: 20 });
+        setNotificationsList(response.data.notifications);
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+        console.error('Error response:', error.response); // Debug log
+        toast.error('Failed to load notifications');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
 
   const handleMarkAllRead = () => {
+    // In a real implementation, this would call an API endpoint
     setNotificationsList((prev) =>
-      prev.map((notif) => ({ ...notif, read: true }))
+      prev.map((notif) => ({ ...notif, is_read: true }))
     );
     toast.success('All notifications marked as read');
   };
 
-  const handleAcceptShift = (id: string) => {
+  const handleAcceptShift = (id: number) => {
     toast.success('Shift swap accepted');
     setNotificationsList((prev) => prev.filter((n) => n.id !== id));
   };
 
-  const handleDeclineShift = (id: string) => {
+  const handleDeclineShift = (id: number) => {
     toast.info('Shift swap declined');
     setNotificationsList((prev) => prev.filter((n) => n.id !== id));
   };
@@ -52,7 +73,15 @@ export function NotificationsScreen() {
     return `${diffDays} days ago`;
   };
 
-  const unreadCount = notificationsList.filter((n) => !n.read).length;
+  const unreadCount = notificationsList.filter((n) => !n.is_read).length;
+
+  if (loading) {
+    return (
+      <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
+        <div className="text-center py-12 text-gray-500">Loading notifications...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
@@ -95,7 +124,7 @@ export function NotificationsScreen() {
             <Card
               key={notification.id}
               className={`shadow-md hover:shadow-lg transition-shadow ${
-                !notification.read ? 'border-l-4 border-l-blue-600' : ''
+                !notification.is_read ? 'border-l-4 border-l-blue-600' : ''
               }`}
             >
               <CardContent className="p-4">
@@ -109,7 +138,7 @@ export function NotificationsScreen() {
                       <h3 className="font-semibold text-gray-900 text-sm">
                         {notification.title}
                       </h3>
-                      {!notification.read && (
+                      {!notification.is_read && (
                         <Badge className="bg-blue-600 hover:bg-blue-700 text-xs">
                           New
                         </Badge>
@@ -122,7 +151,7 @@ export function NotificationsScreen() {
 
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-400">
-                        {formatTimestamp(notification.timestamp)}
+                        {formatTimestamp(notification.created_at)}
                       </span>
 
                       {notification.actionable && notification.type === 'shift' && (

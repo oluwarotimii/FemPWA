@@ -25,52 +25,9 @@ export function LeaveManagementScreen() {
         setLeaveTypes(typesResponse.data.leaveTypes);
       } catch (error) {
         console.error('Failed to fetch leave data:', error);
-        // Fallback to mock data if API fails
-        setLeaveRequests([
-          {
-            id: '1',
-            user_id: 1,
-            leave_type_id: 1,
-            start_date: '2026-02-10',
-            end_date: '2026-02-14',
-            reason: 'Family vacation',
-            status: 'approved',
-            days_requested: 5,
-            submitted_at: '2026-01-10T10:00:00Z'
-          },
-          {
-            id: '2',
-            user_id: 1,
-            leave_type_id: 2,
-            start_date: '2026-01-22',
-            end_date: '2026-01-22',
-            reason: 'Medical appointment',
-            status: 'pending',
-            days_requested: 1,
-            submitted_at: '2026-01-20T10:00:00Z'
-          }
-        ]);
-
-        setLeaveTypes([
-          {
-            id: 1,
-            name: 'Annual Leave',
-            days_per_year: 20,
-            is_paid: true
-          },
-          {
-            id: 2,
-            name: 'Sick Leave',
-            days_per_year: 10,
-            is_paid: true
-          },
-          {
-            id: 3,
-            name: 'Casual Leave',
-            days_per_year: 5,
-            is_paid: false
-          }
-        ]);
+        // No fallback to mock data - just keep the empty arrays
+        setLeaveRequests([]);
+        setLeaveTypes([]);
       } finally {
         setLoading(false);
       }

@@ -10,14 +10,50 @@ import { NewLeaveRequestScreen } from '@/app/components/screens/NewLeaveRequestS
 import { NotificationsScreen } from '@/app/components/screens/NotificationsScreen';
 import { FormsScreen } from '@/app/components/screens/FormsScreen';
 import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
+import { ChangePasswordScreen } from '@/app/components/screens/ChangePasswordScreen';
+import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
+import { DevTools } from '@/app/components/DevTools';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A2B3C] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if user needs to change password or fill personal details
+  if (user?.needs_password_change) {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  if (user?.needs_profile_completion) {
+    return <Navigate to="/fill-personal-details" replace />;
+  }
+
+  // Don't render children until user is loaded
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A2B3C] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -29,7 +65,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A2B3C] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
@@ -37,6 +85,18 @@ function AppRoutes() {
         path="/login"
         element={
           isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginScreen />
+        }
+      />
+      <Route
+        path="/change-password"
+        element={
+          <ChangePasswordScreen />
+        }
+      />
+      <Route
+        path="/fill-personal-details"
+        element={
+          <FillPersonalDetailsScreen />
         }
       />
       <Route
@@ -109,6 +169,7 @@ export default function App() {
             <PWAInstallPrompt />
             <AppRoutes />
             <Toaster position="top-center" richColors />
+            <DevTools />
           </div>
         </AuthProvider>
       </PWAProvider>

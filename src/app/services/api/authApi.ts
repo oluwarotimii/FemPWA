@@ -8,21 +8,27 @@ interface LoginCredentials {
 interface User {
   id: number;
   email: string;
-  full_name: string;
-  role_id: number;
-  branch_id: number;
+  fullName: string;
+  roleId: number;
+  branchId: number;
 }
 
 interface Permissions {
   [key: string]: boolean;
 }
 
+interface Tokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
+}
+
 interface LoginResponse {
   success: boolean;
   message: string;
   data: {
-    token: string;
     user: User;
+    tokens: Tokens;
     permissions: Permissions;
   };
 }
@@ -35,18 +41,33 @@ interface ChangePasswordRequest {
 
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
+    console.log('Auth API - Making login request:', credentials);
     const response = await apiClient.post('/auth/login', credentials);
+    console.log('Auth API - Login response:', response.data);
     return response.data;
   },
 
   logout: async (): Promise<void> => {
-    // In a real implementation, you might want to call a logout endpoint
-    // For now, we just remove the token locally
-    localStorage.removeItem('authToken');
+    try {
+      // Call the logout endpoint if available
+      await apiClient.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+      // Continue with local cleanup even if API call fails
+    } finally {
+      // Always remove local authentication data
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('userId');
+    }
   },
 
   changePassword: async (request: ChangePasswordRequest): Promise<{ success: boolean; message: string }> => {
-    const response = await apiClient.put(`/users/${localStorage.getItem('userId')}/password-change`, request);
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    const response = await apiClient.put(`/users/${userId}/password-change`, request);
     return response.data;
   },
 };

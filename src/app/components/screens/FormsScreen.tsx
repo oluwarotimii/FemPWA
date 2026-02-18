@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   FileText,
@@ -12,7 +12,7 @@ import { Input } from '@/app/components/ui/input';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
-import { companyForms } from '@/app/services/mockData';
+import { formsApi } from '@/app/services/api';
 
 const iconMap: Record<string, any> = {
   book: FileText,
@@ -26,8 +26,25 @@ const iconMap: Record<string, any> = {
 export function FormsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [forms, setForms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredForms = companyForms.filter((form) => {
+  useEffect(() => {
+    const fetchForms = async () => {
+      try {
+        const response = await formsApi.getForms();
+        setForms(response.data.forms);
+      } catch (error) {
+        console.error('Failed to fetch forms:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchForms();
+  }, []);
+
+  const filteredForms = forms.filter((form) => {
     const matchesSearch =
       form.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       form.category.toLowerCase().includes(searchQuery.toLowerCase());
@@ -37,6 +54,14 @@ export function FormsScreen() {
   });
 
   const categories = ['all', 'HR Policies', 'Expense Claims', 'IT Support'];
+
+  if (loading) {
+    return (
+      <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
+        <div className="text-center py-12 text-gray-500">Loading forms...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
@@ -89,7 +114,13 @@ export function FormsScreen() {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {filteredForms.map((form) => {
-                const IconComponent = iconMap[form.icon] || FileText;
+                // Map category to an icon
+                let icon = 'book'; // default
+                if (form.category.includes('Expense')) icon = 'receipt';
+                if (form.category.includes('IT')) icon = 'laptop';
+                if (form.category.includes('HR')) icon = 'clipboard';
+
+                const IconComponent = iconMap[icon] || FileText;
                 return (
                   <Card
                     key={form.id}
@@ -123,8 +154,14 @@ export function FormsScreen() {
           Recently Accessed
         </h2>
         <div className="space-y-2">
-          {companyForms.slice(0, 3).map((form) => {
-            const IconComponent = iconMap[form.icon] || FileText;
+          {forms.slice(0, 3).map((form) => {
+            // Map category to an icon
+            let icon = 'book'; // default
+            if (form.category.includes('Expense')) icon = 'receipt';
+            if (form.category.includes('IT')) icon = 'laptop';
+            if (form.category.includes('HR')) icon = 'clipboard';
+
+            const IconComponent = iconMap[icon] || FileText;
             return (
               <Card
                 key={form.id}

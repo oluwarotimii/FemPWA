@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, Briefcase, TrendingUp } from 'lucide-react';
+import { Clock, Calendar, Briefcase, TrendingUp, Timer } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
@@ -7,6 +7,7 @@ import { Badge } from '@/app/components/ui/badge';
 import { attendanceApi } from '@/app/services/api';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
+import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
 
 export function DashboardScreen() {
   const { user } = useAuth();
@@ -14,6 +15,23 @@ export function DashboardScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Auto-checkout hook - automatically checks out user at 6:30 PM
+  const {
+    isAutoCheckoutEnabled,
+    nextAutoCheckoutTime,
+    wasAutoCheckedOut,
+  } = useAutoCheckout({
+    isEnabled: isClocked,
+    onCheckoutComplete: () => {
+      // Refresh attendance records after auto-checkout
+      const updatedResponse = attendanceApi.getMyAttendance({ limit: 5 });
+      updatedResponse.then((res) => {
+        setAttendanceRecords(res.data?.attendance || []);
+        setIsClocked(false);
+      });
+    },
+  });
 
   // Update time every minute
   useEffect(() => {
@@ -24,22 +42,31 @@ export function DashboardScreen() {
     // Fetch attendance records on mount
     const fetchAttendance = async () => {
       try {
+        console.log('Fetching attendance records...'); // Debug log
+        console.log('Current token:', localStorage.getItem('authToken')); // Debug log
         const response = await attendanceApi.getMyAttendance({ limit: 5 });
-        setAttendanceRecords(response.data.attendance);
-      } catch (error) {
+        setAttendanceRecords(response.data?.attendance || []);
+      } catch (error: any) {
         console.error('Failed to fetch attendance records:', error);
-        // Fallback to mock data if API fails
-        setAttendanceRecords([
-          {
-            id: '1',
-            date: new Date().toISOString().split('T')[0],
-            check_in_time: '09:00',
-            check_out_time: null,
-            status: 'present',
-            location: 'Office',
-            hours_worked: 0
-          }
-        ]);
+        console.error('Error response:', error.response); // Debug log
+
+        // Check if it's a permissions error (403) or other error
+        if (error.response?.status === 403) {
+          toast.error('Access denied', {
+            description: 'You do not have permission to view attendance records. Contact your administrator.'
+          });
+        } else if (error.response?.status === 401) {
+          toast.error('Session expired', {
+            description: 'Please log in again to continue.'
+          });
+        } else {
+          toast.error('Unable to load attendance records', {
+            description: error.response?.data?.message || 'Please try again later'
+          });
+        }
+
+        // No fallback to mock data - just keep the empty array
+        setAttendanceRecords([]);
       } finally {
         setLoading(false);
       }
@@ -69,7 +96,7 @@ export function DashboardScreen() {
         };
         const response = await attendanceApi.checkOut(checkOutData);
 
-        toast.success(response.message, {
+        toast.success(response?.message || 'Successfully clocked out', {
           description: `Successfully clocked out at ${new Date().toLocaleTimeString()}`
         });
       } else {
@@ -82,14 +109,14 @@ export function DashboardScreen() {
         };
         const response = await attendanceApi.checkIn(checkInData);
 
-        toast.success(response.message, {
-          description: `Welcome back, ${user?.full_name}!`
+        toast.success(response?.message || 'Successfully clocked in', {
+          description: `Welcome back, ${user?.fullName}!`
         });
       }
 
       // Refresh attendance records after clock action
       const updatedResponse = await attendanceApi.getMyAttendance({ limit: 5 });
-      setAttendanceRecords(updatedResponse.data.attendance);
+      setAttendanceRecords(updatedResponse.data?.attendance || []);
 
       // Toggle clock status
       setIsClocked(!isClocked);
@@ -107,13 +134,23 @@ export function DashboardScreen() {
     return 'Good Evening';
   };
 
+  // Format the next auto-checkout time for display
+  const formatAutoCheckoutTime = () => {
+    if (!nextAutoCheckoutTime) return '';
+    return nextAutoCheckoutTime.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
   return (
     <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {greeting()}, {user?.full_name}
+            {greeting()}, {user?.fullName}
           </h1>
           <p className="text-gray-500 text-sm">
             {new Date().toLocaleDateString('en-US', {
@@ -125,7 +162,7 @@ export function DashboardScreen() {
           </p>
         </div>
         <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-          <img src={user?.avatar} alt={user?.full_name} className="w-full h-full rounded-full" />
+          <img src={user?.avatar} alt={user?.fullName} className="w-full h-full rounded-full" />
         </div>
       </div>
 
@@ -154,7 +191,7 @@ export function DashboardScreen() {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
               <Badge
                 variant={isClocked ? 'default' : 'secondary'}
                 className={`${
@@ -165,7 +202,26 @@ export function DashboardScreen() {
               >
                 {isClocked ? '● On Shift' : '○ Off Duty'}
               </Badge>
+              
+              {/* Auto-checkout status indicator */}
+              {isClocked && (
+                <Badge
+                  variant="outline"
+                  className="bg-purple-500/20 border-purple-400 text-purple-100"
+                >
+                  <Timer className="w-3 h-3 mr-1" />
+                  Auto-checkout at {formatAutoCheckoutTime()}
+                </Badge>
+              )}
             </div>
+
+            {/* Auto-checkout info message */}
+            {isClocked && (
+              <div className="text-xs text-white/60 flex items-center gap-1 justify-center">
+                <Timer className="w-3 h-3" />
+                <span>You will be automatically checked out at 6:30 PM today</span>
+              </div>
+            )}
 
             <motion.div whileTap={{ scale: 0.95 }}>
               <Button

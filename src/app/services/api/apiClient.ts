@@ -9,27 +9,44 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and validate it
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+
+    // Check if token exists before making the request
+    if (!token) {
+      console.warn('No authentication token found. Request may fail.', config.url);
+      // Optionally, we could redirect to login here
+      // window.location.href = '/login';
+    } else {
+      console.log('API Client - Using token for request:', config.url); // Debug log
+      if (config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
+
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor to handle common errors
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   (error) => {
+    console.log('API Client - Error response:', error.response); // Debug log
+
     if (error.response?.status === 401) {
-      // Token might be expired, redirect to login
+      // Token might be expired or invalid, redirect to login
+      console.log('Unauthorized request - clearing token and redirecting to login');
       localStorage.removeItem('authToken');
+      localStorage.removeItem('userId');
       window.location.href = '/login';
     }
 

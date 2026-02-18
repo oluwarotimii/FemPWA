@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { toast } from 'sonner';
 
 export function LoginScreen() {
-  const { login } = useAuth();
+  const { login, isLoading } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,8 +21,17 @@ export function LoginScreen() {
     setLoading(true);
 
     try {
-      await login(email, password, rememberMe);
+      const userData = await login(email, password, rememberMe);
       toast.success('Login successful!');
+
+      // Check if user needs to change password or complete profile
+      if (userData.needs_password_change) {
+        navigate('/change-password');
+      } else if (userData.needs_profile_completion) {
+        navigate('/fill-personal-details');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error('Invalid credentials. Please try again.');
     } finally {
