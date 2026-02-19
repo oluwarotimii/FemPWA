@@ -52,26 +52,29 @@ export function LeaveManagementScreen() {
     const balances = types.map(type => {
       const usedDays = requests
         .filter(req =>
-          req.leave_type_id === type.id &&
+          req.submission_data?.leave_type_id === type.id &&
           req.status.toLowerCase() === 'approved' &&
-          new Date(req.start_date).getFullYear() === new Date().getFullYear()
+          new Date(req.submission_data.start_date).getFullYear() === new Date().getFullYear()
         )
-        .reduce((sum, req) => sum + req.days_requested, 0);
+        .reduce((sum, req) => sum + req.submission_data.days_requested, 0);
 
       const pendingDays = requests
         .filter(req =>
-          req.leave_type_id === type.id &&
+          req.submission_data?.leave_type_id === type.id &&
           req.status.toLowerCase() === 'pending'
         )
-        .reduce((sum, req) => sum + req.days_requested, 0);
+        .reduce((sum, req) => sum + req.submission_data.days_requested, 0);
 
       return {
         leave_type_id: type.id,
         leave_type_name: type.name,
-        total_days: type.days_per_year,
+        allocated_days: type.days_per_year,
         used_days: usedDays,
         remaining_days: type.days_per_year - usedDays,
-        pending_days: pendingDays
+        pending_days: pendingDays,
+        carried_over_days: 0,
+        cycle_start_date: new Date(new Date().getFullYear(), 0, 1).toISOString(),
+        cycle_end_date: new Date(new Date().getFullYear(), 11, 31).toISOString()
       };
     });
     setLeaveBalances(balances);
@@ -115,24 +118,24 @@ export function LeaveManagementScreen() {
       {loading ? (
         <div className="text-center py-4 text-gray-500">Loading leave balances...</div>
       ) : leaveBalances.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
           {leaveBalances.map((balance) => (
             <Card
               key={balance.leave_type_id}
               className="shadow-md bg-gradient-to-br from-[#1A2B3C] to-[#2C3E50]"
             >
-              <CardContent className="p-4 text-white">
-                <div className="flex items-center gap-2 mb-2">
+              <CardContent className="p-2 md:p-3 text-white">
+                <div className="flex items-center gap-1 md:gap-2 mb-1">
                   {getLeaveTypeIcon(balance.leave_type_name)}
-                  <div className="text-xs text-white/70">{balance.leave_type_name}</div>
+                  <div className="text-xs text-white/70 truncate">{balance.leave_type_name}</div>
                 </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{balance.remaining_days}</span>
-                  <span className="text-sm text-white/70">/ {balance.total_days}</span>
+                  <span className="text-2xl md:text-3xl font-bold">{balance.remaining_days}</span>
+                  <span className="text-xs md:text-sm text-white/70">/ {balance.total_days}</span>
                 </div>
-                <div className="text-xs text-white/70 mt-1">days remaining</div>
+                <div className="text-xs text-white/70 mt-0.5">days remaining</div>
                 {balance.pending_days > 0 && (
-                  <div className="text-xs text-yellow-300 mt-1">
+                  <div className="text-xs text-yellow-300 mt-0.5 truncate">
                     {balance.pending_days} days pending
                   </div>
                 )}
@@ -239,7 +242,7 @@ function LeaveRequestCard({ request, leaveTypes, getStatusColor }: {
   leaveTypes: LeaveType[];
   getStatusColor: (status: string) => string;
 }) {
-  const leaveType = leaveTypes.find(t => t.id === request.leave_type_id);
+  const leaveType = leaveTypes.find(t => t.id === request.submission_data?.leave_type_id);
   
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow">
@@ -247,9 +250,9 @@ function LeaveRequestCard({ request, leaveTypes, getStatusColor }: {
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <div className="font-semibold text-gray-900 mb-1">
-              {leaveType?.name || 'Leave Request'}
+              {request.submission_data?.leave_type_name || leaveType?.name || 'Leave Request'}
             </div>
-            <div className="text-sm text-gray-600">{request.reason}</div>
+            <div className="text-sm text-gray-600">{request.submission_data?.reason || request.reason}</div>
           </div>
           <Badge className={getStatusColor(request.status)}>
             {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
@@ -260,20 +263,20 @@ function LeaveRequestCard({ request, leaveTypes, getStatusColor }: {
           <div className="flex items-center gap-1 text-gray-600">
             <Calendar className="w-4 h-4" />
             <span>
-              {new Date(request.start_date).toLocaleDateString('en-US', {
+              {new Date(request.submission_data?.start_date).toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric'
               })}{' '}
               -{' '}
-              {new Date(request.end_date).toLocaleDateString('en-US', {
+              {new Date(request.submission_data?.end_date).toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric'
               })}
             </span>
           </div>
-          <Badge variant="outline">{request.days_requested} day(s)</Badge>
+          <Badge variant="outline">{request.submission_data?.days_requested || request.days_requested} day(s)</Badge>
         </div>
       </CardContent>
     </Card>

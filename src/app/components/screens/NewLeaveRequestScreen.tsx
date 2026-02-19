@@ -114,7 +114,7 @@ export function NewLeaveRequestScreen() {
     }
   };
 
-  const selectedBalance = leaveBalances.find(b => b.leave_type_name === leaveTypes.find(t => t.id === parseInt(selectedLeaveType))?.name);
+  const selectedBalance = leaveBalances.find(b => b.leave_type_id === parseInt(selectedLeaveType));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -172,11 +172,11 @@ export function NewLeaveRequestScreen() {
                   <p>
                     Available: <strong>{selectedBalance?.remaining_days || 0}</strong> days | 
                     Used: <strong>{selectedBalance?.used_days || 0}</strong> days | 
-                    Total: <strong>{selectedBalance?.total_days || 0}</strong> days
+                    Allocated: <strong>{selectedBalance?.allocated_days || 0}</strong> days
                   </p>
-                  {selectedBalance && selectedBalance.pending_days > 0 && (
+                  {selectedBalance && selectedBalance.carried_over_days > 0 && (
                     <p className="text-amber-600">
-                      Pending: <strong>{selectedBalance.pending_days}</strong> days
+                      Carried Over: <strong>{selectedBalance.carried_over_days}</strong> days
                     </p>
                   )}
                 </div>
