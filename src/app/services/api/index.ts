@@ -6,4 +6,5 @@ export { notificationApi } from './notificationApi';
 export { formsApi } from './formsApi';
 export { performanceApi } from './performanceApi';
 export { targetsApi } from './targetsApi';
+export { branchesApi } from './branchesApi';
 export { default as apiClient } from './apiClient';

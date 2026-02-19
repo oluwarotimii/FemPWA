@@ -12,6 +12,7 @@ import { FormsScreen } from '@/app/components/screens/FormsScreen';
 import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
 import { ChangePasswordScreen } from '@/app/components/screens/ChangePasswordScreen';
 import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
+import { StaffDetailsFormScreen } from '@/app/components/screens/StaffDetailsFormScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { DevTools } from '@/app/components/DevTools';
@@ -152,6 +153,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ProfileScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/staff-details-form"
+        element={
+          <ProtectedRoute>
+            <StaffDetailsFormScreen />
           </ProtectedRoute>
         }
       />

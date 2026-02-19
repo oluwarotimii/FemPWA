@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, Briefcase, TrendingUp, Timer } from 'lucide-react';
+import { Clock, Calendar, Briefcase, TrendingUp, Timer, UserCheck } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
@@ -11,79 +11,109 @@ import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
 
 export function DashboardScreen() {
   const { user } = useAuth();
-  const [isClocked, setIsClocked] = useState(false); // Default to not clocked in
   const [currentTime, setCurrentTime] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Track today's attendance status
+  const [todayRecord, setTodayRecord] = useState<any | null>(null);
+
+  // Derived states
+  const hasCheckedInToday = todayRecord?.check_in_time !== null && todayRecord?.check_in_time !== undefined;
+  const hasCheckedOutToday = todayRecord?.check_out_time !== null && todayRecord?.check_out_time !== undefined;
+  const isClocked = hasCheckedInToday && !hasCheckedOutToday;
 
   // Auto-checkout hook - automatically checks out user at 6:30 PM
   const {
-    isAutoCheckoutEnabled,
     nextAutoCheckoutTime,
-    wasAutoCheckedOut,
   } = useAutoCheckout({
     isEnabled: isClocked,
     onCheckoutComplete: () => {
-      // Refresh attendance records after auto-checkout
-      const updatedResponse = attendanceApi.getMyAttendance({ limit: 5 });
-      updatedResponse.then((res) => {
-        setAttendanceRecords(res.data?.attendance || []);
-        setIsClocked(false);
-      });
+      refreshAttendance();
     },
   });
 
-  // Update time every minute
+  // Refresh attendance records
+  const refreshAttendance = async () => {
+    try {
+      // Get today's date in local timezone
+      const today = new Date().toLocaleDateString('en-CA', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+      }); // Returns YYYY-MM-DD in local timezone
+      
+      // Fetch records for the entire month to find today's record
+      const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      console.log('=== Refreshing Attendance ===');
+      console.log('Today (local):', today);
+      console.log('Date range:', startDate, 'to', endDate);
+      
+      const response = await attendanceApi.getMyAttendance({ 
+        startDate,
+        endDate,
+        limit: 100 
+      });
+      const records = response.data?.attendance || [];
+      setAttendanceRecords(records);
+      
+      console.log('Total records fetched:', records.length);
+      console.log('All record dates:', records.map((r: any) => ({
+        id: r.id,
+        date: r.date,
+        dateOnly: r.date.split('T')[0],
+        localDate: new Date(r.date).toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+        check_in_time: r.check_in_time,
+        check_out_time: r.check_out_time,
+        status: r.status
+      })));
+      
+      // Find today's record - convert API date to local timezone
+      const todaysRecord = records.find((r: any) => {
+        // Convert API UTC date to local date
+        const localRecordDate = new Date(r.date).toLocaleDateString('en-CA', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit' 
+        });
+        const matches = localRecordDate === today;
+        if (matches) {
+          console.log('✓ Found today\'s record:', r);
+        }
+        return matches;
+      });
+      
+      if (!todaysRecord) {
+        console.log('✗ No record found for today');
+      }
+      console.log('Today\'s record:', todaysRecord);
+      console.log('check_in_time:', todaysRecord?.check_in_time);
+      console.log('check_out_time:', todaysRecord?.check_out_time);
+      console.log('hasCheckedInToday:', todaysRecord?.check_in_time !== null && todaysRecord?.check_in_time !== undefined);
+      console.log('hasCheckedOutToday:', todaysRecord?.check_out_time !== null && todaysRecord?.check_out_time !== undefined);
+      
+      setTodayRecord(todaysRecord || null);
+    } catch (error: any) {
+      console.error('Failed to fetch attendance records:', error);
+      setAttendanceRecords([]);
+      setTodayRecord(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update time every minute and fetch attendance on mount
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 60000);
 
-    // Fetch attendance records on mount
-    const fetchAttendance = async () => {
-      try {
-        console.log('Fetching attendance records...'); // Debug log
-        console.log('Current token:', localStorage.getItem('authToken')); // Debug log
-        const response = await attendanceApi.getMyAttendance({ limit: 5 });
-        setAttendanceRecords(response.data?.attendance || []);
-      } catch (error: any) {
-        console.error('Failed to fetch attendance records:', error);
-        console.error('Error response:', error.response); // Debug log
-
-        // Check if it's a permissions error (403) or other error
-        if (error.response?.status === 403) {
-          toast.error('Access denied', {
-            description: 'You do not have permission to view attendance records. Contact your administrator.'
-          });
-        } else if (error.response?.status === 401) {
-          toast.error('Session expired', {
-            description: 'Please log in again to continue.'
-          });
-        } else {
-          toast.error('Unable to load attendance records', {
-            description: error.response?.data?.message || 'Please try again later'
-          });
-        }
-
-        // No fallback to mock data - just keep the empty array
-        setAttendanceRecords([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAttendance();
+    refreshAttendance();
 
     return () => clearInterval(timer);
   }, []);
-
-  // Check if user is currently clocked in based on last attendance record
-  useEffect(() => {
-    if (attendanceRecords.length > 0) {
-      const lastRecord = attendanceRecords[0];
-      setIsClocked(lastRecord.check_out_time === null);
-    }
-  }, [attendanceRecords]);
 
   const handleClockAction = async () => {
     try {
@@ -112,14 +142,17 @@ export function DashboardScreen() {
         toast.success(response?.message || 'Successfully clocked in', {
           description: `Welcome back, ${user?.fullName}!`
         });
+
+        // Immediately set today's record to prevent double check-in
+        setTodayRecord({
+          check_in_time: new Date().toTimeString().substring(0, 8),
+          check_out_time: null,
+        });
+        return; // Don't refresh, we already updated state
       }
 
-      // Refresh attendance records after clock action
-      const updatedResponse = await attendanceApi.getMyAttendance({ limit: 5 });
-      setAttendanceRecords(updatedResponse.data?.attendance || []);
-
-      // Toggle clock status
-      setIsClocked(!isClocked);
+      // Refresh attendance records after clock out
+      await refreshAttendance();
     } catch (error: any) {
       toast.error('Failed to update attendance', {
         description: error.response?.data?.message || 'Please try again'
@@ -191,6 +224,7 @@ export function DashboardScreen() {
               </div>
             </div>
 
+            {/* Status Badge */}
             <div className="flex items-center justify-center gap-2 flex-wrap">
               <Badge
                 variant={isClocked ? 'default' : 'secondary'}
@@ -202,7 +236,7 @@ export function DashboardScreen() {
               >
                 {isClocked ? '● On Shift' : '○ Off Duty'}
               </Badge>
-              
+
               {/* Auto-checkout status indicator */}
               {isClocked && (
                 <Badge
@@ -215,26 +249,44 @@ export function DashboardScreen() {
               )}
             </div>
 
-            {/* Auto-checkout info message */}
+            {/* Info messages */}
             {isClocked && (
               <div className="text-xs text-white/60 flex items-center gap-1 justify-center">
                 <Timer className="w-3 h-3" />
-                <span>You will be automatically checked out at 6:30 PM today</span>
+                <span>Auto-checkout at 6:30 PM - No manual checkout needed</span>
               </div>
             )}
 
-            <motion.div whileTap={{ scale: 0.95 }}>
+            {hasCheckedOutToday && (
+              <div className="text-xs text-white/60 flex items-center gap-1 justify-center">
+                <UserCheck className="w-3 h-3" />
+                <span>Checked out for the day</span>
+              </div>
+            )}
+
+            {/* Clock In/Out Button */}
+            <motion.div whileTap={hasCheckedInToday ? {} : { scale: 0.95 }}>
               <Button
-                onClick={handleClockAction}
                 size="lg"
                 className={`w-full h-16 text-lg font-semibold rounded-2xl ${
-                  isClocked
+                  hasCheckedInToday
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : isClocked
                     ? 'bg-red-500 hover:bg-red-600'
                     : 'bg-green-500 hover:bg-green-600'
                 }`}
-                disabled={loading}
+                disabled={loading || hasCheckedInToday}
+                onClick={hasCheckedInToday ? undefined : handleClockAction}
               >
-                {loading ? 'Processing...' : (isClocked ? 'Clock Out' : 'Clock In')}
+                {loading
+                  ? 'Processing...'
+                  : hasCheckedInToday
+                  ? hasCheckedOutToday
+                    ? '✓ Checked Out'
+                    : '✓ Checked In'
+                  : isClocked
+                  ? 'Clock Out'
+                  : 'Clock In'}
               </Button>
             </motion.div>
           </div>
