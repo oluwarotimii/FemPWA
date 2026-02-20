@@ -1,0 +1,1502 @@
+{
+  "info": {
+    "name": "HR Management System API",
+    "description": "Complete API collection for HR Management System with focus on Attendance and Leave Management modules",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@company.co.ke\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('accessToken', jsonData.data.token);",
+                  "    console.log('Access token saved to environment');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your-refresh-token-here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "Get User Permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "permissions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users Management",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@company.co.ke\",\n  \"password\": \"Password123!\",\n  \"full_name\": \"John Doe\",\n  \"role_id\": 4,\n  \"branch_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"John Doe Updated\",\n  \"role_id\": 3,\n  \"branch_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Terminate User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/1/terminate",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1", "terminate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Management",
+      "item": [
+        {
+          "name": "Get All Staff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["staff"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Staff by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["staff", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get My Staff Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["staff", "me"]
+            }
+          }
+        },
+        {
+          "name": "Create Staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 2,\n  \"employee_id\": \"EMP0002\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Smith\",\n  \"email\": \"jane.smith@company.co.ke\",\n  \"designation\": \"Manager\",\n  \"department_id\": 1,\n  \"branch_id\": 1,\n  \"joining_date\": \"2025-02-01\",\n  \"employment_type\": \"full_time\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["staff"]
+            }
+          }
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"designation\": \"Senior Manager\",\n  \"department_id\": 2,\n  \"branch_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/staff/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["staff", "1"]
+            }
+          }
+        },
+        {
+          "name": "Terminate Staff",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff/1/terminate",
+              "host": ["{{baseUrl}}"],
+              "path": ["staff", "1", "terminate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles & Permissions",
+      "item": [
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles"]
+            }
+          }
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Supervisor\",\n  \"description\": \"Team Supervisor\",\n  \"permissions\": [\"staff:read\", \"attendance:read\", \"attendance:manage\", \"leave:approve\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles"]
+            }
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Supervisor\",\n  \"description\": \"Senior Team Supervisor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Role Permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/1/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "1", "permissions"]
+            }
+          }
+        },
+        {
+          "name": "Add Role Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"reports:generate\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/1/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "1", "permissions"]
+            }
+          }
+        },
+        {
+          "name": "Remove Role Permission",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/1/permissions/staff:read",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "1", "permissions", "staff:read"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Branches Management",
+      "item": [
+        {
+          "name": "Get All Branches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"]
+            }
+          }
+        },
+        {
+          "name": "Get Branch by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Kisumu Branch\",\n  \"code\": \"KIS\",\n  \"city\": \"Kisumu\",\n  \"country\": \"Kenya\",\n  \"phone\": \"+254-300\",\n  \"email\": \"kis@company.co.ke\",\n  \"location_coordinates\": \"-0.0917,34.7519\",\n  \"location_radius_meters\": 100,\n  \"attendance_mode\": \"branch_based\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"]
+            }
+          }
+        },
+        {
+          "name": "Update Branch",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Kisumu Regional Office\",\n  \"phone\": \"+254-350\",\n  \"location_radius_meters\": 200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Branch",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Departments Management",
+      "item": [
+        {
+          "name": "Get All Departments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["departments"]
+            }
+          }
+        },
+        {
+          "name": "Get Department by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departments/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["departments", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Operations\",\n  \"description\": \"Operations department\",\n  \"branch_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["departments"]
+            }
+          }
+        },
+        {
+          "name": "Update Department",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Operations & Logistics\",\n  \"description\": \"Operations and Logistics department\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["departments", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Department",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departments/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["departments", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Attendance Management (Core)",
+      "item": [
+        {
+          "name": "Check-In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location_coordinates\": \"-1.286389,36.817223\",\n  \"location_address\": \"Nairobi HQ, Kenyatta Avenue\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/check-in",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "check-in"]
+            }
+          }
+        },
+        {
+          "name": "Check-Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location_coordinates\": \"-1.286389,36.817223\",\n  \"location_address\": \"Nairobi HQ, Kenyatta Avenue\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/check-out",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "check-out"]
+            }
+          }
+        },
+        {
+          "name": "Get My Attendance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/my?startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "my"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Attendance Records",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance?userId=1&startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "1"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Attendance Records (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/records?page=1&limit=20&startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "records"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Attendance Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/my/summary?startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "my", "summary"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Attendance Summary (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/summary?userId=1&startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "summary"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "1"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Monthly Attendance Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/reports/monthly?year=2025&month=2&userId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "reports", "monthly"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2025"
+                },
+                {
+                  "key": "month",
+                  "value": "2"
+                },
+                {
+                  "key": "userId",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Staff Attendance Data (Dashboard)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/staff-data?startDate=2025-02-01&endDate=2025-02-28&branchId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "staff-data"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Attendance by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Attendance Record",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"present\",\n  \"check_in_time\": \"09:00:00\",\n  \"check_out_time\": \"18:00:00\",\n  \"location_verified\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Holidays",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/holidays?startDate=2025-01-01&endDate=2025-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "holidays"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Attendance Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Update Attendance Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grace_period_minutes\": 15,\n  \"auto_checkout_time\": \"18:00:00\",\n  \"location_verification_required\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "settings"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leave Management (Core)",
+      "item": [
+        {
+          "name": "Leave Types",
+          "item": [
+            {
+              "name": "Get All Leave Types",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types"]
+                }
+              },
+              "description": "Get all active leave types. Requires authentication."
+            },
+            {
+              "name": "Get Leave Type by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types", "1"]
+                }
+              },
+              "description": "Get a specific leave type by ID. Requires authentication."
+            },
+            {
+              "name": "Create Leave Type",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Study Leave\",\n  \"days_per_year\": 30,\n  \"is_paid\": false,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 5,\n  \"expiry_rule_id\": null\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types"]
+                }
+              },
+              "description": "Create a new leave type. Requires 'leave:request' permission."
+            },
+            {
+              "name": "Update Leave Type",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Annual Leave Updated\",\n  \"days_per_year\": 24,\n  \"is_paid\": true,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 10,\n  \"is_active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types", "1"]
+                }
+              },
+              "description": "Update an existing leave type. Requires 'leave:approve' permission."
+            },
+            {
+              "name": "Delete (Deactivate) Leave Type",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types", "1"]
+                }
+              },
+              "description": "Deactivate a leave type (soft delete). Requires 'leave:approve' permission."
+            }
+          ]
+        },
+        {
+          "name": "Leave Requests",
+          "item": [
+            {
+              "name": "Get All Leave Requests (Admin/HR)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/requests?status=submitted&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "requests"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "submitted"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "description": "Get all leave requests with optional filters. Requires 'leave:read' permission. Status can be: submitted, approved, rejected, cancelled."
+            },
+            {
+              "name": "Get My Leave Requests",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/requests/my?status=submitted&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "requests", "my"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "submitted"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "description": "Get current user's own leave requests. No special permission required."
+            },
+            {
+              "name": "Get Leave Request by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/requests/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "requests", "1"]
+                }
+              },
+              "description": "Get a specific leave request by ID. Accessible by owner or admin/HR users."
+            },
+            {
+              "name": "Create Leave Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"leave_type_id\": 1,\n  \"start_date\": \"2025-03-01\",\n  \"end_date\": \"2025-03-10\",\n  \"reason\": \"Family vacation\",\n  \"attachments\": null\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/requests",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "requests"]
+                }
+              },
+              "description": "Create a new leave request. Requires 'leave:create' permission. Start date cannot be in the past. User must have sufficient leave balance."
+            },
+            {
+              "name": "Update Leave Request (Admin)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"approved\",\n  \"reason\": \"Approved by manager\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/requests/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "requests", "1"]
+                }
+              },
+              "description": "Update a leave request (primarily for status changes). Requires 'leave:update' permission. Status can be: submitted, approved, rejected, cancelled."
+            },
+            {
+              "name": "Delete (Cancel) Leave Request",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/requests/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "requests", "1"]
+                }
+              },
+              "description": "Cancel a leave request. Requires 'leave:delete' permission. Only 'submitted' requests can be cancelled."
+            }
+          ]
+        },
+        {
+          "name": "Leave Allocations",
+          "item": [
+            {
+              "name": "Get All Leave Allocations (Admin/HR)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations?userId=1&leaveTypeId=1&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations"],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "1"
+                    },
+                    {
+                      "key": "leaveTypeId",
+                      "value": "1"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "description": "Get all leave allocations with optional filters. Requires 'leave_allocation:read' permission."
+            },
+            {
+              "name": "Get My Leave Allocations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/my-allocations",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "my-allocations"]
+                }
+              },
+              "description": "Get current user's own leave allocations. No special permission required."
+            },
+            {
+              "name": "Get Leave Allocation by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "1"]
+                }
+              },
+              "description": "Get a specific leave allocation by ID. Requires 'leave_allocation:read' permission."
+            },
+            {
+              "name": "Create Leave Allocation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 1,\n  \"leave_type_id\": 1,\n  \"allocated_days\": 21,\n  \"cycle_start_date\": \"2025-01-01\",\n  \"cycle_end_date\": \"2025-12-31\",\n  \"carried_over_days\": 0\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations"]
+                }
+              },
+              "description": "Create a new leave allocation for a user. Requires 'leave_allocation:create' permission."
+            },
+            {
+              "name": "Update Leave Allocation",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"allocated_days\": 24,\n  \"used_days\": 5,\n  \"carried_over_days\": 2\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "1"]
+                }
+              },
+              "description": "Update an existing leave allocation. Requires 'leave_allocation:update' permission. Used days cannot exceed allocated + carried over days."
+            },
+            {
+              "name": "Delete Leave Allocation",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "1"]
+                }
+              },
+              "description": "Delete a leave allocation. Requires 'leave_allocation:delete' permission."
+            }
+          ]
+        },
+        {
+          "name": "Leave Balance & History",
+          "item": [
+            {
+              "name": "Get My Leave Balance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/balance",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "balance"]
+                }
+              },
+              "description": "Get current user's leave balance by leave type. Shows allocated, used, carried over, and remaining days for each leave type."
+            },
+            {
+              "name": "Get Leave History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/history?userId=1&year=2025&status=approved&page=1&limit=50",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "history"],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "1"
+                    },
+                    {
+                      "key": "year",
+                      "value": "2025"
+                    },
+                    {
+                      "key": "status",
+                      "value": "approved"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "50"
+                    }
+                  ]
+                }
+              },
+              "description": "Get leave history from leave_history table. Optional filters: userId, year, status."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "System Initialization",
+      "item": [
+        {
+          "name": "Check System Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/system/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["system", "status"]
+            }
+          },
+          "description": "Check if the system has been initialized (no authentication required)"
+        },
+        {
+          "name": "Initialize System (Create Super Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@company.co.ke\",\n  \"password\": \"Admin@123!\",\n  \"full_name\": \"System Administrator\",\n  \"phone\": \"+254700000000\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/system/initialize",
+              "host": ["{{baseUrl}}"],
+              "path": ["system", "initialize"]
+            }
+          },
+          "description": "Initialize the system by creating the first Super Admin user. Only works if system is not yet initialized.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('accessToken', jsonData.data.token);",
+                  "    console.log('Access token saved to environment');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check System Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/system-complete/readiness",
+              "host": ["{{baseUrl}}"],
+              "path": ["system-complete", "readiness"]
+            }
+          },
+          "description": "Check if the system is ready for complete initialization (migrations + admin creation)"
+        },
+        {
+          "name": "Complete System Setup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@company.co.ke\",\n  \"password\": \"Admin@123!\",\n  \"full_name\": \"System Administrator\",\n  \"phone\": \"+254700000000\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/system-complete/setup-complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["system-complete", "setup-complete"]
+            }
+          },
+          "description": "Run all migrations and create the Super Admin user in one step",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('accessToken', jsonData.data.token);",
+                  "    console.log('Access token saved to environment');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Role Management (System)",
+      "item": [
+        {
+          "name": "Get Available Permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/role-management/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["role-management", "permissions"]
+            }
+          },
+          "description": "Get all available permissions for role creation"
+        },
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/role-management",
+              "host": ["{{baseUrl}}"],
+              "path": ["role-management"]
+            }
+          }
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Team Lead\",\n  \"description\": \"Team leadership role\",\n  \"permissions\": [\"staff:read\", \"attendance:read\", \"attendance:manage\", \"leave:approve\", \"reports:view\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/role-management",
+              "host": ["{{baseUrl}}"],
+              "path": ["role-management"]
+            }
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Team Lead\",\n  \"description\": \"Senior team leadership role\",\n  \"permissions\": [\"staff:read\", \"staff:update\", \"attendance:read\", \"attendance:manage\", \"leave:approve\", \"reports:view\", \"reports:generate\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/role-management/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["role-management", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/role-management/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["role-management", "1"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

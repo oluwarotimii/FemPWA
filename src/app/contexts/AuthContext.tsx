@@ -15,13 +15,21 @@ interface User {
   needs_profile_completion?: boolean;
 }
 
+interface Permissions {
+  [key: string]: boolean;
+}
+
 interface AuthContextType {
   user: User | null;
+  permissions: Permissions | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe: boolean) => Promise<User>; // Return user data
   logout: () => void;
   updateUser: (user: User) => void;
+  updatePermissions: (permissions: Permissions) => void;
+  hasPermission: (permission: string) => boolean;
+  hasAnyPermission: (permissions: string[]) => boolean;
   needsPasswordChange: boolean;
   needsProfileCompletion: boolean;
   initializeAuth: () => Promise<void>;
@@ -31,10 +39,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const needsPasswordChange = user?.needs_password_change || false;
   const needsProfileCompletion = user?.needs_profile_completion || false;
+
+  // Check if user has a specific permission
+  const hasPermission = (permission: string): boolean => {
+    if (!permissions) return false;
+    return permissions[permission] === true;
+  };
+
+  // Check if user has any of the specified permissions
+  const hasAnyPermission = (permissionList: string[]): boolean => {
+    if (!permissions) return false;
+    return permissionList.some((perm) => permissions[perm] === true);
+  };
+
+  const updatePermissions = (newPermissions: Permissions) => {
+    setPermissions(newPermissions);
+    // Also store in localStorage for persistence
+    localStorage.setItem('permissions', JSON.stringify(newPermissions));
+  };
 
   // FIXED: Actually fetches user data so state isn't 'null' on refresh
   const initializeAuth = async () => {
@@ -43,6 +70,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('authToken');
 
       if (token) {
+        // Load permissions from localStorage
+        const storedPermissions = localStorage.getItem('permissions');
+        if (storedPermissions) {
+          try {
+            const parsed = JSON.parse(storedPermissions);
+            setPermissions(parsed);
+          } catch (e) {
+            console.error('Failed to parse stored permissions:', e);
+          }
+        }
+
         // Standard Way: Fetch fresh user data from the server using the stored token
         // This ensures the token is still valid and the user profile is up to date
         const response = await staffApi.getCurrentUserStaffDetails();
@@ -116,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Extracting user and token data...');
       const userData = response.data.user;
       const token = response.data.tokens?.accessToken || response.data.token;
+      const userPermissions = response.data.permissions;
 
       if (!userData) {
         console.log('User data is falsy:', userData);
@@ -129,6 +168,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem('authToken', token);
       localStorage.setItem('userId', userData.id.toString());
+
+      // Store permissions if provided
+      if (userPermissions) {
+        setPermissions(userPermissions);
+        localStorage.setItem('permissions', JSON.stringify(userPermissions));
+        console.log('Permissions stored:', userPermissions);
+      }
 
       setUser(userData);
       console.log('Login successful! Token stored.');
@@ -151,8 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      setPermissions(null);
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
+      localStorage.removeItem('permissions');
     }
   };
 
@@ -167,11 +215,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user,
+      permissions,
       isAuthenticated: !!user,
       isLoading,
       login,
       logout,
       updateUser,
+      updatePermissions,
+      hasPermission,
+      hasAnyPermission,
       needsPasswordChange,
       needsProfileCompletion,
       initializeAuth

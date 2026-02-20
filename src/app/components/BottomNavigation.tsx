@@ -6,11 +6,13 @@ import {
   FileText,
   User,
   Plane,
+  Clock,
 } from "lucide-react";
 
 const navItems = [
   { path: "/dashboard", icon: Home, label: "Home" },
   { path: "/attendance", icon: Calendar, label: "Attendance" },
+  { path: "/shifts", icon: Clock, label: "Shifts" },
   { path: "/leave", icon: Plane, label: "Leave" },
   // { path: "/notifications", icon: Bell, label: "Alerts" },
   { path: "/profile", icon: User, label: "Profile" },
@@ -23,7 +25,7 @@ export function BottomNavigation() {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
       <div className="max-w-2xl mx-auto">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;

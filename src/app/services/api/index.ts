@@ -1,6 +1,7 @@
 export { authApi } from './authApi';
 export { attendanceApi } from './attendanceApi';
 export { leaveApi } from './leaveApi';
+export { shiftApi } from './shiftApi';
 export { staffApi } from './staffApi';
 export { notificationApi } from './notificationApi';
 export { formsApi } from './formsApi';

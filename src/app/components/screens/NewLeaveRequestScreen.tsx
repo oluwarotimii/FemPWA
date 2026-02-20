@@ -85,14 +85,14 @@ export function NewLeaveRequestScreen() {
     setLoading(true);
 
     try {
-      const leaveType = leaveTypes.find(t => t.id === leaveTypeId);
+      const attachments = document ? [document.name] : undefined;
+      
       await leaveApi.submitLeaveRequest({
         leave_type_id: leaveTypeId,
         start_date: startDate,
         end_date: endDate,
-        days_requested: daysRequested,
         reason,
-        attachments: document ? [document.name] : []
+        attachments
       });
 
       toast.success('Leave Request Submitted', {
@@ -116,6 +116,9 @@ export function NewLeaveRequestScreen() {
 
   const selectedBalance = leaveBalances.find(b => b.leave_type_id === parseInt(selectedLeaveType));
 
+  // Get today's date in YYYY-MM-DD format for min date
+  const today = new Date().toISOString().split('T')[0];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -134,157 +137,159 @@ export function NewLeaveRequestScreen() {
       </div>
 
       {/* Form */}
-      <div className="max-w-2xl mx-auto p-4 pb-20 space-y-4">
-        {/* Leave Type with Balance Info */}
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Leave Type *
-            </label>
-            <Select value={selectedLeaveType} onValueChange={setSelectedLeaveType} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Select leave type" />
-              </SelectTrigger>
-              <SelectContent>
-                {leaveTypes.filter(t => t.is_active).map((type) => (
-                  <SelectItem key={type.id} value={type.id.toString()}>
-                    <div className="flex items-center justify-between w-full">
-                      <span>{type.name}</span>
-                      {(() => {
-                        const balance = leaveBalances.find(b => b.leave_type_id === type.id);
-                        return (
-                          <Badge variant="outline" className="ml-2">
-                            {balance ? balance.remaining_days : type.days_per_year} days left
-                          </Badge>
-                        );
-                      })()}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            {selectedLeaveType && (
-              <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium">Leave Balance:</p>
-                  <p>
-                    Available: <strong>{selectedBalance?.remaining_days || 0}</strong> days | 
-                    Used: <strong>{selectedBalance?.used_days || 0}</strong> days | 
-                    Allocated: <strong>{selectedBalance?.allocated_days || 0}</strong> days
-                  </p>
-                  {selectedBalance && selectedBalance.carried_over_days > 0 && (
-                    <p className="text-amber-600">
-                      Carried Over: <strong>{selectedBalance.carried_over_days}</strong> days
+      <form onSubmit={handleSubmit}>
+        <div className="max-w-2xl mx-auto p-4 pb-20 space-y-4">
+          {/* Leave Type with Balance Info */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Leave Type *
+              </label>
+              <Select value={selectedLeaveType} onValueChange={setSelectedLeaveType} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select leave type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {leaveTypes.filter(t => t.is_active).map((type) => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{type.name}</span>
+                        {(() => {
+                          const balance = leaveBalances.find(b => b.leave_type_id === type.id);
+                          return (
+                            <Badge variant="outline" className="ml-2">
+                              {balance ? balance.remaining_days : type.days_per_year} days left
+                            </Badge>
+                          );
+                        })()}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {selectedLeaveType && (
+                <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
+                  <Info className="w-4 h-4 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Leave Balance:</p>
+                    <p>
+                      Available: <strong>{selectedBalance?.remaining_days || 0}</strong> days |
+                      Used: <strong>{selectedBalance?.used_days || 0}</strong> days |
+                      Allocated: <strong>{selectedBalance?.allocated_days || 0}</strong> days
                     </p>
-                  )}
+                    {selectedBalance && selectedBalance.carried_over_days > 0 && (
+                      <p className="text-amber-600">
+                        Carried Over: <strong>{selectedBalance.carried_over_days}</strong> days
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Dates */}
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date *
+                </label>
+                <div className="relative">
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                    min={today}
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Dates */}
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Start Date *
-              </label>
-              <div className="relative">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required
-                  min={new Date().toISOString().split('T')[0]}
-                />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                End Date *
-              </label>
-              <div className="relative">
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  min={startDate || new Date().toISOString().split('T')[0]}
-                />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {daysRequested > 0 && (
-              <div className="pt-2 border-t">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Total days requested:</span>
-                  <span className="font-semibold text-gray-900">{daysRequested} day(s)</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date *
+                </label>
+                <div className="relative">
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                    min={startDate || today}
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Reason */}
-        <Card>
-          <CardContent className="p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Reason for Leave *
-            </label>
-            <Textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Please provide a brief reason for your leave request..."
-              rows={4}
-              required
-            />
-          </CardContent>
-        </Card>
+              {daysRequested > 0 && (
+                <div className="pt-2 border-t">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Total days requested:</span>
+                    <span className="font-semibold text-gray-900">{daysRequested} day(s)</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Attachment */}
-        <Card>
-          <CardContent className="p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Attach Document (Optional)
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#1A2B3C] transition-colors cursor-pointer">
-              <input
-                type="file"
-                onChange={handleFileChange}
-                className="hidden"
-                id="file-upload"
-                accept=".pdf,.doc,.docx,.jpg,.png"
+          {/* Reason */}
+          <Card>
+            <CardContent className="p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason for Leave *
+              </label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Please provide a brief reason for your leave request..."
+                rows={4}
+                required
               />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <Paperclip className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                <p className="text-sm text-gray-600">
-                  {document ? document.name : 'Click to upload document'}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  PDF, DOC, or image files (max 5MB)
-                </p>
-              </label>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Submit Button */}
-        <div className="sticky bottom-0 bg-white border-t p-4 -mx-4 mt-6">
-          <Button
-            type="submit"
-            disabled={loading || !selectedLeaveType || !startDate || !endDate || !reason}
-            className="w-full h-12 bg-[#1A2B3C] hover:bg-[#2C3E50]"
-          >
-            {loading ? 'Submitting...' : 'Submit Request'}
-          </Button>
+          {/* Attachment */}
+          <Card>
+            <CardContent className="p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Attach Document (Optional)
+              </label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#1A2B3C] transition-colors cursor-pointer">
+                <input
+                  type="file"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="file-upload"
+                  accept=".pdf,.doc,.docx,.jpg,.png"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <Paperclip className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                  <p className="text-sm text-gray-600">
+                    {document ? document.name : 'Click to upload document'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    PDF, DOC, or image files (max 5MB)
+                  </p>
+                </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Submit Button */}
+          <div className="sticky bottom-0 bg-white border-t p-4 -mx-4 mt-6">
+            <Button
+              type="submit"
+              disabled={loading || !selectedLeaveType || !startDate || !endDate || !reason}
+              className="w-full h-12 bg-[#1A2B3C] hover:bg-[#2C3E50]"
+            >
+              {loading ? 'Submitting...' : 'Submit Request'}
+            </Button>
+          </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

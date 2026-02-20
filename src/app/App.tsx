@@ -6,7 +6,9 @@ import { LoginScreen } from '@/app/components/screens/LoginScreen';
 import { DashboardScreen } from '@/app/components/screens/DashboardScreen';
 import { AttendanceHistoryScreen } from '@/app/components/screens/AttendanceHistoryScreen';
 import { LeaveManagementScreen } from '@/app/components/screens/LeaveManagementScreen';
+import { LeaveHistoryScreen } from '@/app/components/screens/LeaveHistoryScreen';
 import { NewLeaveRequestScreen } from '@/app/components/screens/NewLeaveRequestScreen';
+import { ShiftsManagementScreen } from '@/app/components/screens/ShiftsManagementScreen';
 import { NotificationsScreen } from '@/app/components/screens/NotificationsScreen';
 import { FormsScreen } from '@/app/components/screens/FormsScreen';
 import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
@@ -125,10 +127,26 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/leave-history"
+        element={
+          <ProtectedRoute>
+            <LeaveHistoryScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/new-leave"
         element={
           <ProtectedRoute>
             <NewLeaveRequestScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/shifts"
+        element={
+          <ProtectedRoute>
+            <ShiftsManagementScreen />
           </ProtectedRoute>
         }
       />
