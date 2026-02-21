@@ -294,7 +294,7 @@ export function DashboardScreen() {
       </Card>
 
       {/* Quick Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* <div className="grid grid-cols-3 gap-3">
         <Card className="shadow-md">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-[#1A2B3C]">
@@ -317,7 +317,7 @@ export function DashboardScreen() {
             <div className="text-xs text-gray-500 mt-1">Next Holiday</div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
 
       {/* Recent Log */}
       <Card className="shadow-md">

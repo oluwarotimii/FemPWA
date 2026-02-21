@@ -528,27 +528,34 @@ export function AttendanceHistoryScreen() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 text-sm">
+                  {/* <div>
+                    <div className="text-gray-500 text-xs mb-1">Clock In</div>
+                    <div className="font-semibold text-gray-900">
+                      {record.check_in_time ? new Date(`1970-01-01T${record.check_in_time}`).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
+                    </div>
+                  </div> */}
                   <div>
+                    {/* <div className="text-gray-500 text-xs mb-1">Clock Out</div> */}
+                    {/* <div className="font-semibold text-gray-900 flex items-center gap-1">
+                      {record.check_out_time ? new Date(`1970-01-01T${record.check_out_time}`).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
+                      {record.is_auto_checkout && (
+                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded">Auto</span>
+                      )}
+                    </div> */}
+
+                    <div>
                     <div className="text-gray-500 text-xs mb-1">Clock In</div>
                     <div className="font-semibold text-gray-900">
                       {record.check_in_time ? new Date(`1970-01-01T${record.check_in_time}`).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-gray-500 text-xs mb-1">Clock Out</div>
-                    <div className="font-semibold text-gray-900 flex items-center gap-1">
-                      {record.check_out_time ? new Date(`1970-01-01T${record.check_out_time}`).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
-                      {record.is_auto_checkout && (
-                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded">Auto</span>
-                      )}
-                    </div>
                   </div>
-                  <div>
+                  {/* <div>
                     <div className="text-gray-500 text-xs mb-1">Total Hours</div>
                     <Badge className="bg-[#1A2B3C] hover:bg-[#2C3E50]">
                       {record.hours_worked ? `${record.hours_worked}h` : '-'}
                     </Badge>
-                  </div>
+                  </div> */}
                 </div>
               </CardContent>
             </Card>
