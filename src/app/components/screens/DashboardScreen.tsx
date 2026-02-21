@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, Briefcase, TrendingUp, Timer, UserCheck } from 'lucide-react';
+import { Clock, Calendar, Briefcase } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
@@ -23,10 +23,8 @@ export function DashboardScreen() {
   const hasCheckedOutToday = todayRecord?.check_out_time !== null && todayRecord?.check_out_time !== undefined;
   const isClocked = hasCheckedInToday && !hasCheckedOutToday;
 
-  // Auto-checkout hook - automatically checks out user at 6:30 PM
-  const {
-    nextAutoCheckoutTime,
-  } = useAutoCheckout({
+  // Auto-checkout hook - automatically checks out user after check-in
+  useAutoCheckout({
     isEnabled: isClocked,
     onCheckoutComplete: () => {
       refreshAttendance();
@@ -37,27 +35,33 @@ export function DashboardScreen() {
   const refreshAttendance = async () => {
     try {
       // Get today's date in local timezone
-      const today = new Date().toLocaleDateString('en-CA', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit' 
+      const today = new Date().toLocaleDateString('en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
       }); // Returns YYYY-MM-DD in local timezone
-      
+
       // Fetch records for the entire month to find today's record
       const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
       const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
-      
+
       console.log('=== Refreshing Attendance ===');
       console.log('Today (local):', today);
       console.log('Date range:', startDate, 'to', endDate);
-      
-      const response = await attendanceApi.getMyAttendance({ 
+
+      const response = await attendanceApi.getMyAttendance({
         startDate,
         endDate,
-        limit: 100 
+        limit: 100
       });
       const records = response.data?.attendance || [];
-      setAttendanceRecords(records);
+
+      // Sort records by date in descending order (most recent first)
+      const sortedRecords = [...records].sort((a, b) => {
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+
+      setAttendanceRecords(sortedRecords);
       
       console.log('Total records fetched:', records.length);
       console.log('All record dates:', records.map((r: any) => ({
@@ -167,16 +171,6 @@ export function DashboardScreen() {
     return 'Good Evening';
   };
 
-  // Format the next auto-checkout time for display
-  const formatAutoCheckoutTime = () => {
-    if (!nextAutoCheckoutTime) return '';
-    return nextAutoCheckoutTime.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
   return (
     <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
       {/* Header */}
@@ -236,33 +230,7 @@ export function DashboardScreen() {
               >
                 {isClocked ? '● On Shift' : '○ Off Duty'}
               </Badge>
-
-              {/* Auto-checkout status indicator */}
-              {isClocked && (
-                <Badge
-                  variant="outline"
-                  className="bg-purple-500/20 border-purple-400 text-purple-100"
-                >
-                  <Timer className="w-3 h-3 mr-1" />
-                  Auto-checkout at {formatAutoCheckoutTime()}
-                </Badge>
-              )}
             </div>
-
-            {/* Info messages */}
-            {isClocked && (
-              <div className="text-xs text-white/60 flex items-center gap-1 justify-center">
-                <Timer className="w-3 h-3" />
-                <span>Auto-checkout at 6:30 PM - No manual checkout needed</span>
-              </div>
-            )}
-
-            {hasCheckedOutToday && (
-              <div className="text-xs text-white/60 flex items-center gap-1 justify-center">
-                <UserCheck className="w-3 h-3" />
-                <span>Checked out for the day</span>
-              </div>
-            )}
 
             {/* Clock In/Out Button */}
             <motion.div whileTap={hasCheckedInToday ? {} : { scale: 0.95 }}>
@@ -330,7 +298,7 @@ export function DashboardScreen() {
             {loading ? (
               <div className="text-center py-4 text-gray-500">Loading attendance records...</div>
             ) : attendanceRecords.length > 0 ? (
-              attendanceRecords.slice(0, 3).map((record) => (
+              attendanceRecords.slice(0, 7).map((record) => (
                 <div
                   key={record.id}
                   className="flex items-center justify-between py-2 border-b last:border-0"
@@ -344,7 +312,7 @@ export function DashboardScreen() {
                       })}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {record.check_in_time} - {record.check_out_time || 'In Progress'}
+                      {record.check_in_time} - {record.check_out_time || '-'}
                     </div>
                   </div>
                   <div className="text-right">
