@@ -65,7 +65,8 @@ export function useAutoCheckout({
       const checkOutData = {
         date: todayStr,
         check_out_time: new Date().toTimeString().substring(0, 8),
-        location: 'Office',
+        location_coordinates: null,
+        location_address: 'Office (Auto)',
         is_auto_checkout: true,
       };
 
@@ -94,7 +95,8 @@ export function useAutoCheckout({
       const checkOutData = {
         date: todayStr,
         check_out_time: new Date().toTimeString().substring(0, 8),
-        location: 'Office',
+        location_coordinates: null,
+        location_address: 'Office (Auto)',
         is_auto_checkout: true,
       };
 
@@ -173,7 +175,8 @@ export function useAutoCheckout({
             const checkOutData = {
               date: recordDate,
               check_out_time: isTodayRecord ? new Date().toTimeString().substring(0, 8) : '18:30:00',
-              location: 'Office',
+              location_coordinates: null,
+              location_address: 'Office (Auto)',
               is_auto_checkout: true,
             };
             

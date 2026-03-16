@@ -36,6 +36,21 @@ export interface EmployeeShiftAssignment {
   updated_at: string;
 }
 
+export interface ShiftException {
+  id: number;
+  user_id: number;
+  user_name?: string;
+  exception_date: string;
+  exception_type: 'special_schedule' | 'shift_swap' | 'emergency' | 'other';
+  new_start_time?: string;
+  new_end_time?: string;
+  new_break_duration_minutes?: number;
+  reason?: string;
+  status: 'active' | 'cancelled' | 'approved';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ShiftTiming {
   id: number;
   user_id?: number;
@@ -477,6 +492,98 @@ export const shiftApi = {
     };
   }> => {
     const response = await apiClient.get('/time-off-banks/my-balance');
+    return response.data;
+  },
+
+  // ==================== SHIFT EXCEPTIONS ====================
+
+  /**
+   * Get all shift exceptions (Admin only)
+   * GET /shift-scheduling/exceptions
+   */
+  getShiftExceptions: async (params?: {
+    userId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      exceptions: ShiftException[];
+    };
+  }> => {
+    const response = await apiClient.get('/shift-scheduling/exceptions', { params });
+    return response.data;
+  },
+
+  /**
+   * Get my shift exceptions
+   * GET /shift-scheduling/exceptions/my
+   */
+  getMyShiftExceptions: async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      exceptions: ShiftException[];
+    };
+  }> => {
+    const response = await apiClient.get('/shift-scheduling/exceptions/my', { params });
+    return response.data;
+  },
+
+  /**
+   * Create shift exception
+   * POST /shift-scheduling/exceptions
+   */
+  createShiftException: async (exception: {
+    user_id: number;
+    exception_date: string;
+    exception_type: string;
+    new_start_time?: string;
+    new_end_time?: string;
+    new_break_duration_minutes?: number;
+    reason?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      exception: ShiftException;
+    };
+  }> => {
+    const response = await apiClient.post('/shift-scheduling/exceptions', exception);
+    return response.data;
+  },
+
+  /**
+   * Update shift exception
+   * PUT /shift-scheduling/exceptions/:id
+   */
+  updateShiftException: async (
+    id: number,
+    updates: Partial<ShiftException>
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      exception: ShiftException;
+    };
+  }> => {
+    const response = await apiClient.put(`/shift-scheduling/exceptions/${id}`, updates);
+    return response.data;
+  },
+
+  /**
+   * Delete shift exception
+   * DELETE /shift-scheduling/exceptions/:id
+   */
+  deleteShiftException: async (id: number): Promise<{
+    success: boolean;
+    message: string;
+  }> => {
+    const response = await apiClient.delete(`/shift-scheduling/exceptions/${id}`);
     return response.data;
   },
 };

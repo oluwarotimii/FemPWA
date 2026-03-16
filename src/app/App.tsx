@@ -15,6 +15,7 @@ import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
 import { ChangePasswordScreen } from '@/app/components/screens/ChangePasswordScreen';
 import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
 import { StaffDetailsFormScreen } from '@/app/components/screens/StaffDetailsFormScreen';
+import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { DevTools } from '@/app/components/DevTools';
@@ -179,6 +180,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <StaffDetailsFormScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/holidays"
+        element={
+          <ProtectedRoute>
+            <HolidaysScreen />
           </ProtectedRoute>
         }
       />

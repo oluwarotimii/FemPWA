@@ -1,5 +1,6 @@
 export { authApi } from './authApi';
 export { attendanceApi } from './attendanceApi';
+export { branchesApi } from './branchesApi';
 export { leaveApi } from './leaveApi';
 export { shiftApi } from './shiftApi';
 export { staffApi } from './staffApi';
@@ -7,5 +8,5 @@ export { notificationApi } from './notificationApi';
 export { formsApi } from './formsApi';
 export { performanceApi } from './performanceApi';
 export { targetsApi } from './targetsApi';
-export { branchesApi } from './branchesApi';
+export { holidayApi } from './holidayApi';
 export { default as apiClient } from './apiClient';

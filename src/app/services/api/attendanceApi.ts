@@ -7,7 +7,7 @@ interface AttendanceRecord {
   check_in_time: string | null;
   check_out_time: string | null;
   status: string;
-  location_coordinates?: { x: number; y: number } | null;
+  location_coordinates?: { latitude: number; longitude: number } | null;
   location_verified?: number;
   location_address?: string | null;
   hours_worked?: number;

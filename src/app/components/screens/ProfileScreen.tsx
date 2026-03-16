@@ -385,7 +385,8 @@ export function ProfileScreen() {
       </Card>
 
       {/* Verification Status */}
-      <Card className="shadow-md">
+      {/* NOTE: Verification status section commented out - not needed for staff view */}
+      {/* <Card className="shadow-md">
         <CardContent className="p-4 space-y-3">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <FileCheck className="w-5 h-5 text-teal-600" />
@@ -396,8 +397,8 @@ export function ProfileScreen() {
             <div>
               <div className="text-xs text-gray-500 mb-1">Reference Check</div>
               <Badge className={
-                staffDetails?.reference_check_status === 'pending' 
-                  ? 'bg-amber-100 text-amber-700' 
+                staffDetails?.reference_check_status === 'pending'
+                  ? 'bg-amber-100 text-amber-700'
                   : staffDetails?.reference_check_status === 'completed'
                   ? 'bg-green-100 text-green-700'
                   : 'bg-gray-100 text-gray-700'
@@ -408,8 +409,8 @@ export function ProfileScreen() {
             <div>
               <div className="text-xs text-gray-500 mb-1">Background Verification</div>
               <Badge className={
-                staffDetails?.background_verification_status === 'pending' 
-                  ? 'bg-amber-100 text-amber-700' 
+                staffDetails?.background_verification_status === 'pending'
+                  ? 'bg-amber-100 text-amber-700'
                   : staffDetails?.background_verification_status === 'completed'
                   ? 'bg-green-100 text-green-700'
                   : 'bg-gray-100 text-gray-700'
@@ -419,7 +420,7 @@ export function ProfileScreen() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Settings Section */}
       <Card className="shadow-md">

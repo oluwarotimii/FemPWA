@@ -249,12 +249,35 @@ export const leaveApi = {
    * Create a new leave request
    * POST /leave/requests
    */
-  submitLeaveRequest: async (request: LeaveRequestInput): Promise<{
+  submitLeaveRequest: async (request: {
+    leave_type_id: number;
+    start_date: string;
+    end_date: string;
+    reason: string;
+    attachments?: File[];
+  }): Promise<{
     success: boolean;
     message: string;
     data: { leaveRequest: LeaveRequest };
   }> => {
-    const response = await apiClient.post('/leave/requests', request);
+    const formData = new FormData();
+    formData.append('leave_type_id', request.leave_type_id.toString());
+    formData.append('start_date', request.start_date);
+    formData.append('end_date', request.end_date);
+    formData.append('reason', request.reason);
+    
+    // The backend multer expects a field name of 'files'
+    if (request.attachments && request.attachments.length > 0) {
+      request.attachments.forEach(file => {
+        formData.append('files', file);
+      });
+    }
+
+    const response = await apiClient.post('/leave/requests', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 

@@ -31,10 +31,12 @@ export function LeaveManagementScreen() {
   const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [processingAction, setProcessingAction] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my-leave' | 'manage'>('my-leave');
+  const [activeTab, setActiveTab] = useState<'my-leave'>('my-leave');
 
   // Users with leave:update or leave:read permission can manage others' requests
-  const canManageOthers = hasPermission('leave:update') || hasPermission('leave:read');
+  // NOTE: Manage Leave section commented out - only available through dashboard for authorized users
+  // const canManageOthers = hasPermission('leave:update') || hasPermission('leave:read');
+  const canManageOthers = false; // Disabled - manage leave only through dashboard
   const canApprove = hasPermission('leave:update');
 
   useEffect(() => {
@@ -128,13 +130,22 @@ export function LeaveManagementScreen() {
     setLeaveBalances(balances);
   };
 
+  // ❌ DISABLED: No one should be able to approve/reject leave requests from the app
+  // Only through dashboard/backend with proper authorization
   const handleApproveReject = (request: LeaveRequest, type: 'approve' | 'reject') => {
-    setSelectedRequest(request);
-    setActionType(type);
-    setActionDialogOpen(true);
-    if (type === 'reject') {
-      setRejectionReason('');
-    }
+    toast.error('Leave approval/rejection is disabled', {
+      description: 'Please contact HR or use the admin dashboard to manage leave requests'
+    });
+    // Do nothing - disabled
+    return;
+    
+    // Original code commented out:
+    // setSelectedRequest(request);
+    // setActionType(type);
+    // setActionDialogOpen(true);
+    // if (type === 'reject') {
+    //   setRejectionReason('');
+    // }
   };
 
   const confirmAction = async () => {
@@ -233,60 +244,40 @@ export function LeaveManagementScreen() {
         </div>
       </div>
 
-      {/* Main Tabs - My Leave vs Manage Leave */}
-      {canManageOthers ? (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'my-leave' | 'manage')} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-11 sm:h-12">
-            <TabsTrigger value="my-leave" className="text-sm sm:text-base">My Leave</TabsTrigger>
-            <TabsTrigger value="manage" className="text-sm sm:text-base">
-              Manage Leave
-              {allLeaveRequests.filter(r => r.status.toLowerCase() === 'submitted').length > 0 && (
-                <Badge className="ml-2 bg-red-500 text-white text-xs">
-                  {allLeaveRequests.filter(r => r.status.toLowerCase() === 'submitted').length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      ) : null}
+      {/* Leave Balance Cards */}
+      {loading ? (
+        <div className="text-center py-4 text-gray-500 text-sm">Loading leave balances...</div>
+      ) : leaveBalances.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          {leaveBalances.map((balance) => (
+            <Card
+              key={balance.leave_type_id}
+              className="shadow-md bg-gradient-to-br from-[#1A2B3C] to-[#2C3E50]"
+            >
+              <CardContent className="p-2 sm:p-3 text-white">
+                <div className="flex items-center gap-1 sm:gap-2 mb-1">
+                  {getLeaveTypeIcon(balance.leave_type_name)}
+                  <div className="text-xs text-white/70 truncate">{balance.leave_type_name}</div>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl sm:text-3xl font-bold">{balance.remaining_days}</span>
+                  <span className="text-xs text-white/70">/ {balance.allocated_days}</span>
+                </div>
+                <div className="text-xs text-white/70 mt-0.5">days remaining</div>
+                {balance.pending_days > 0 && (
+                  <div className="text-xs text-yellow-300 mt-0.5 truncate">
+                    {balance.pending_days} pending
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-4 text-gray-500 text-sm">No leave balances available</div>
+      )}
 
-      {/* Content based on active tab */}
-      {activeTab === 'my-leave' ? (
-        <>
-          {/* Leave Balance Cards - Only show in My Leave tab */}
-          {loading ? (
-            <div className="text-center py-4 text-gray-500 text-sm">Loading leave balances...</div>
-          ) : leaveBalances.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              {leaveBalances.map((balance) => (
-                <Card
-                  key={balance.leave_type_id}
-                  className="shadow-md bg-gradient-to-br from-[#1A2B3C] to-[#2C3E50]"
-                >
-                  <CardContent className="p-2 sm:p-3 text-white">
-                    <div className="flex items-center gap-1 sm:gap-2 mb-1">
-                      {getLeaveTypeIcon(balance.leave_type_name)}
-                      <div className="text-xs text-white/70 truncate">{balance.leave_type_name}</div>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl sm:text-3xl font-bold">{balance.remaining_days}</span>
-                      <span className="text-xs text-white/70">/ {balance.allocated_days}</span>
-                    </div>
-                    <div className="text-xs text-white/70 mt-0.5">days remaining</div>
-                    {balance.pending_days > 0 && (
-                      <div className="text-xs text-yellow-300 mt-0.5 truncate">
-                        {balance.pending_days} pending
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500 text-sm">No leave balances available</div>
-          )}
-
-          {/* Statistics Cards - Personal stats */}
+      {/* Statistics Cards - Personal stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <Card className="shadow-sm">
               <CardContent className="p-2 sm:p-3 text-center">
@@ -319,44 +310,6 @@ export function LeaveManagementScreen() {
               </CardContent>
             </Card>
           </div>
-        </>
-      ) : (
-        <>
-          {/* Manage Leave Tab - Statistics for all requests */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-            <Card className="shadow-sm">
-              <CardContent className="p-2 sm:p-3 text-center">
-                <div className="text-lg sm:text-2xl font-bold text-[#1A2B3C]">{allLeaveRequests.length}</div>
-                <div className="text-xs text-gray-500">Total</div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-2 sm:p-3 text-center">
-                <div className="text-lg sm:text-2xl font-bold text-yellow-600">
-                  {allLeaveRequests.filter((r) => r.status.toLowerCase() === 'submitted').length}
-                </div>
-                <div className="text-xs text-gray-500">Pending</div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-2 sm:p-3 text-center">
-                <div className="text-lg sm:text-2xl font-bold text-green-600">
-                  {allLeaveRequests.filter((r) => r.status.toLowerCase() === 'approved').length}
-                </div>
-                <div className="text-xs text-gray-500">Approved</div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-2 sm:p-3 text-center">
-                <div className="text-lg sm:text-2xl font-bold text-red-600">
-                  {allLeaveRequests.filter((r) => r.status.toLowerCase() === 'rejected').length}
-                </div>
-                <div className="text-xs text-gray-500">Rejected</div>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
 
       {/* Leave Requests */}
       <Tabs defaultValue="all" className="w-full">
@@ -677,7 +630,8 @@ function LeaveRequestCard({
             <Badge variant="outline" className="shrink-0 text-xs">{calculateDays()} day(s)</Badge>
           </div>
 
-          {canApprove && request.status.toLowerCase() === 'submitted' && (
+          {/* ❌ DISABLED: Approve/Reject buttons removed - only through admin dashboard */}
+          {/* {canApprove && request.status.toLowerCase() === 'submitted' && (
             <div className="flex items-center gap-2 shrink-0">
               <Button
                 size="sm"
@@ -697,7 +651,7 @@ function LeaveRequestCard({
                 <span className="hidden sm:inline">Reject</span>
               </Button>
             </div>
-          )}
+          )} */}
         </div>
       </CardContent>
     </Card>

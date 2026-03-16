@@ -85,7 +85,7 @@ export function NewLeaveRequestScreen() {
     setLoading(true);
 
     try {
-      const attachments = document ? [document.name] : undefined;
+      const attachments = document ? [document] : undefined;
       
       await leaveApi.submitLeaveRequest({
         leave_type_id: leaveTypeId,

@@ -11,6 +11,8 @@ export interface Branch {
   phone: string;
   email: string;
   branch_manager_id?: number;
+  location_coordinates?: string | null;
+  location_radius_meters?: number | null;
   status: 'active' | 'inactive';
   created_at: string;
   updated_at: string;

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Calendar, Clock, Plus, CheckCircle, XCircle, AlertCircle, 
-  Users, FileText, Settings, Coffee, Sun, Moon
+import {
+  Calendar, Clock, Plus, CheckCircle, XCircle, AlertCircle,
+  Users, FileText, Settings, Coffee, Sun, Moon, CalendarDays
 } from 'lucide-react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
@@ -27,7 +27,7 @@ import {
 } from '@/app/components/ui/select';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { shiftApi, type ShiftTemplate, type EmployeeShiftAssignment, type ScheduleRequest } from '@/app/services/api';
+import { shiftApi, type ShiftTemplate, type EmployeeShiftAssignment, type ScheduleRequest, type ShiftException } from '@/app/services/api';
 
 export function ShiftsManagementScreen() {
   const navigate = useNavigate();
@@ -39,6 +39,7 @@ export function ShiftsManagementScreen() {
   const [allAssignments, setAllAssignments] = useState<EmployeeShiftAssignment[]>([]);
   const [scheduleRequests, setScheduleRequests] = useState<ScheduleRequest[]>([]);
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
+  const [myExceptions, setMyExceptions] = useState<ShiftException[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Dialog states
@@ -65,7 +66,7 @@ export function ShiftsManagementScreen() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
+
       // Always fetch personal shift assignments
       try {
         const myAssignmentsResponse = await shiftApi.getMyShiftAssignments();
@@ -73,6 +74,15 @@ export function ShiftsManagementScreen() {
       } catch (error) {
         console.log('Could not fetch personal shift assignments');
         setMyAssignments([]);
+      }
+
+      // Fetch personal shift exceptions
+      try {
+        const exceptionsResponse = await shiftApi.getMyShiftExceptions();
+        setMyExceptions(exceptionsResponse.data.exceptions);
+      } catch (error) {
+        console.log('Could not fetch personal shift exceptions');
+        setMyExceptions([]);
       }
 
       // Fetch all assignments if user can manage
@@ -283,6 +293,7 @@ export function ShiftsManagementScreen() {
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-11 sm:h-12">
             <TabsTrigger value="my-schedule" className="text-xs sm:text-sm">My Schedule</TabsTrigger>
+            <TabsTrigger value="exceptions" className="text-xs sm:text-sm">Exceptions</TabsTrigger>
             <TabsTrigger value="request" className="text-xs sm:text-sm">My Requests</TabsTrigger>
             {canManageShifts && (
               <TabsTrigger value="manage" className="text-xs sm:text-sm">Manage Shifts</TabsTrigger>
@@ -415,6 +426,90 @@ export function ShiftsManagementScreen() {
                     className="bg-[#1A2B3C] hover:bg-[#2C3E50]"
                   >
                     Request Shift Assignment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Exceptions Tab */}
+          <TabsContent value="exceptions" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">My Exceptions</h3>
+              <Button
+                onClick={handleOpenRequestDialog}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Request Exception
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">Loading exceptions...</div>
+            ) : myExceptions.length > 0 ? (
+              <div className="space-y-2">
+                {myExceptions.map((exception) => (
+                  <Card key={exception.id} className="shadow-sm">
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge className={
+                              exception.status === 'active' || exception.status === 'approved'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }>
+                              {exception.status === 'active' || exception.status === 'approved'
+                                ? 'Approved'
+                                : exception.status}
+                            </Badge>
+                            <span className="text-xs text-gray-500">
+                              {exception.exception_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </span>
+                          </div>
+                          {exception.reason && (
+                            <p className="text-sm text-gray-600">{exception.reason}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{formatDate(exception.exception_date)}</span>
+                        </div>
+                        {exception.new_start_time && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatTime(exception.new_start_time)}</span>
+                          </div>
+                        )}
+                        {exception.new_end_time && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatTime(exception.new_end_time)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8 sm:p-12 text-center">
+                  <CalendarDays className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Exceptions</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    You don't have any shift exceptions scheduled
+                  </p>
+                  <Button
+                    onClick={handleOpenRequestDialog}
+                    className="bg-[#1A2B3C] hover:bg-[#2C3E50]"
+                  >
+                    Request Exception
                   </Button>
                 </CardContent>
               </Card>
