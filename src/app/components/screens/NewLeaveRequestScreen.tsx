@@ -74,6 +74,11 @@ export function NewLeaveRequestScreen() {
       return;
     }
 
+    if (!document) {
+      toast.error('Please upload a supporting document (required)');
+      return;
+    }
+
     const leaveTypeId = parseInt(selectedLeaveType);
     const availableDays = getAvailableDays(leaveTypeId);
 
@@ -85,15 +90,17 @@ export function NewLeaveRequestScreen() {
     setLoading(true);
 
     try {
-      const attachments = document ? [document] : undefined;
-      
-      await leaveApi.submitLeaveRequest({
-        leave_type_id: leaveTypeId,
-        start_date: startDate,
-        end_date: endDate,
-        reason,
-        attachments
-      });
+      // Use FormData to send file attachment
+      const formData = new FormData();
+      // Don't send user_id - backend gets it from JWT token
+      formData.append('leave_type_id', leaveTypeId.toString());
+      formData.append('start_date', startDate);
+      formData.append('end_date', endDate);
+      formData.append('reason', reason);
+      // Backend expects field name 'files' not 'attachment'
+      formData.append('files', document);
+
+      await leaveApi.submitLeaveRequest(formData);
 
       toast.success('Leave Request Submitted', {
         description: 'Your manager will review your request shortly'
@@ -251,11 +258,12 @@ export function NewLeaveRequestScreen() {
             </CardContent>
           </Card>
 
-          {/* Attachment */}
+          {/* Attachment - MANDATORY */}
           <Card>
             <CardContent className="p-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Attach Document (Optional)
+                Supporting Document *
+                <span className="text-red-500 ml-1">(Required)</span>
               </label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#1A2B3C] transition-colors cursor-pointer">
                 <input
@@ -263,18 +271,23 @@ export function NewLeaveRequestScreen() {
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
-                  accept=".pdf,.doc,.docx,.jpg,.png"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  required
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <Paperclip className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600">
-                    {document ? document.name : 'Click to upload document'}
+                    {document ? document.name : 'Click to upload supporting document'}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    PDF, DOC, or image files (max 5MB)
+                    PDF, DOC, or image files (max 10MB) - Required for all leave requests
                   </p>
                 </label>
               </div>
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                Supporting documents are required (e.g., medical certificate, travel documents, etc.)
+              </p>
             </CardContent>
           </Card>
 

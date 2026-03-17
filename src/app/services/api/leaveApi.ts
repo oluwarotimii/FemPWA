@@ -255,25 +255,36 @@ export const leaveApi = {
     end_date: string;
     reason: string;
     attachments?: File[];
-  }): Promise<{
+  } | FormData): Promise<{
     success: boolean;
     message: string;
     data: { leaveRequest: LeaveRequest };
   }> => {
+    // Check if request is already FormData
+    if (request instanceof FormData) {
+      const response = await apiClient.post('/leave/', request, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
+
+    // Otherwise build FormData from object
     const formData = new FormData();
     formData.append('leave_type_id', request.leave_type_id.toString());
     formData.append('start_date', request.start_date);
     formData.append('end_date', request.end_date);
     formData.append('reason', request.reason);
-    
-    // The backend multer expects a field name of 'files'
+
+    // Backend expects 'files' field name (not 'attachment')
     if (request.attachments && request.attachments.length > 0) {
       request.attachments.forEach(file => {
         formData.append('files', file);
       });
     }
 
-    const response = await apiClient.post('/leave/requests', formData, {
+    const response = await apiClient.post('/leave/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

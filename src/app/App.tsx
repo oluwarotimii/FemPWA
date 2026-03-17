@@ -45,7 +45,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.needs_profile_completion) {
-    return <Navigate to="/fill-personal-details" replace />;
+    return <Navigate to="/staff-details-form" replace />;
   }
 
   // Don't render children until user is loaded
