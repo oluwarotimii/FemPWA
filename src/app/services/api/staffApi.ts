@@ -43,7 +43,7 @@ export const staffApi = {
       throw new Error('User not authenticated');
     }
 
-    const response = await apiClient.get('/staff/profile');
+    const response = await apiClient.get('/staff/me');
     return response.data;
   },
 

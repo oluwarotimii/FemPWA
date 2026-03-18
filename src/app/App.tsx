@@ -19,6 +19,7 @@ import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { DevTools } from '@/app/components/DevTools';
+import { GuarantorPage } from '@/app/pages/GuarantorPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -188,6 +189,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <HolidaysScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/guarantors"
+        element={
+          <ProtectedRoute>
+            <GuarantorPage />
           </ProtectedRoute>
         }
       />
