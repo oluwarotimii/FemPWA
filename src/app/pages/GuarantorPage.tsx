@@ -54,7 +54,7 @@ const occupationOptions = [
   'Farmer', 'Trader', 'Student', 'Retired', 'Other'
 ];
 
-export default function GuarantorPage() {
+export function GuarantorPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -687,3 +687,5 @@ export default function GuarantorPage() {
     </div>
   );
 }
+
+export default GuarantorPage;

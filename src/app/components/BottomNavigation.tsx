@@ -17,7 +17,6 @@ const navItems = [
   // { path: "/shifts", icon: Clock, label: "Shifts" },
   // { path: "/holidays", icon: Shield, label: "Holidays" },
   { path: "/leave", icon: Plane, label: "Leave" },
-  { path: "/guarantors", icon: Users, label: "Guarantors" },
   { path: "/profile", icon: User, label: "Profile" },
 ];
 
@@ -28,7 +27,7 @@ export function BottomNavigation() {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
       <div className="max-w-2xl mx-auto">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;

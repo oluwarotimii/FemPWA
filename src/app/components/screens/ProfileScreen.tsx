@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Edit, User, Briefcase, MapPin, Calendar, Moon, Sun, Bell, Lock, LogOut, Mail, Phone, Home, Banknote, GraduationCap, AlertCircle, FileCheck, Building2 } from 'lucide-react';
+import { Edit, User, Briefcase, MapPin, Calendar, Moon, Sun, Bell, Lock, LogOut, Mail, Phone, Home, Banknote, GraduationCap, AlertCircle, FileCheck, Building2, Users } from 'lucide-react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Switch } from '@/app/components/ui/switch';
@@ -421,6 +421,32 @@ export function ProfileScreen() {
           </div>
         </CardContent>
       </Card> */}
+
+      {/* Guarantors Section */}
+      <Card className="shadow-md">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-gray-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">My Guarantors</h3>
+                <p className="text-xs text-gray-500">Manage your guarantor information</p>
+              </div>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Add and manage your guarantors. Upload signed forms and ID documents for HR verification.
+          </p>
+          <Button
+            onClick={() => navigate('/guarantors')}
+            className="w-full"
+            variant="outline"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Manage Guarantors
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Settings Section */}
       <Card className="shadow-md">
