@@ -228,17 +228,6 @@ export function useAutoCheckout({
     };
   }, [isEnabled, checkAndTriggerCheckout, checkAndFixStaleRecords]);
 
-  // Trigger immediate checkout when user checks in (after a short delay)
-  useEffect(() => {
-    if (isEnabled) {
-      const timeoutId = setTimeout(() => {
-        performImmediateCheckout();
-      }, AUTO_CHECKOUT_DELAY_MS);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isEnabled, performImmediateCheckout]);
-
   // Reset trigger flag when user manually checks in
   useEffect(() => {
     if (isEnabled) {
@@ -249,6 +238,10 @@ export function useAutoCheckout({
       }
     }
   }, [isEnabled]);
+
+  // NOTE: Removed immediate checkout (5 seconds after check-in)
+  // This was defeating the purpose of time tracking!
+  // Users should be checked out at end of day (6:30 PM), not immediately after check-in
 
   return {
     isAutoCheckoutEnabled: isEnabled,

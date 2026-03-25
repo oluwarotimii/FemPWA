@@ -16,7 +16,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
         runtimeCaching: [
           {
-            urlPattern: /^http:\/\/localhost:3000\/api\/.*$/,
+            urlPattern: /^https:\/\/hrapi\.tripa\.com\.ng\/api\/.*$/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
@@ -29,13 +29,28 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Employee PWA Staff Portal',
-        short_name: 'Staff Portal',
-        description: 'Employee portal for attendance, leave management, and HR tasks',
-        theme_color: '#1A2B3C',
+        name: 'Femtech Human Resource',
+        short_name: 'Femtech HR',
+        description: 'Employee self-service portal for attendance, leave management, and HR tasks',
+        theme_color: '#4f46e5',
         background_color: '#ffffff',
         display: 'standalone',
-        icon: 'public/icons/icon-192x192.svg',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: '/icons/icon-192x192.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icons/icon-512x512.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          }
+        ]
       },
     }),
   ],

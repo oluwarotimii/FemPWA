@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, CheckCircle, AlertCircle, Coffee, Sun, Moon, CalendarDays, TrendingUp, Users } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, AlertCircle, Coffee, Sun, Moon, CalendarDays, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
@@ -9,15 +9,22 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { shiftApi, type EmployeeShiftAssignment, type ShiftException } from '@/app/services/api';
 
 export function ShiftsManagementScreen() {
-  const { user, hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState<'my-schedule' | 'upcoming' | 'team'>('my-schedule');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'my-schedule' | 'upcoming'>('my-schedule');
   const [myAssignments, setMyAssignments] = useState<EmployeeShiftAssignment[]>([]);
   const [myExceptions, setMyExceptions] = useState<ShiftException[]>([]);
+  const [upcomingShifts, setUpcomingShifts] = useState<Array<{
+    date: string;
+    startTime: string;
+    endTime: string;
+    breakDurationMinutes: number;
+    shiftType?: string;
+    templateName: string;
+    isException?: boolean;
+    exceptionType?: string;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, active: 0 });
-  const [teamShifts, setTeamShifts] = useState<any>({});
-
-  const canViewTeam = hasPermission('employee_shift_assignment:read');
 
   useEffect(() => {
     fetchData();
@@ -26,23 +33,30 @@ export function ShiftsManagementScreen() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      console.log('[ShiftsScreen] Fetching data for tab:', activeTab);
+      
+      // Fetch my assignments
       const myAssignmentsResponse = await shiftApi.getMyShiftAssignments();
       setMyAssignments(myAssignmentsResponse.data.shiftAssignments);
       setStats(prev => ({ ...prev, total: myAssignmentsResponse.data.shiftAssignments.length }));
 
+      // Fetch my exceptions
       const exceptionsResponse = await shiftApi.getMyShiftExceptions();
       setMyExceptions(exceptionsResponse.data.exceptions);
 
-      if (activeTab === 'team' && canViewTeam) {
+      // Fetch upcoming shifts if on that tab
+      if (activeTab === 'upcoming') {
         try {
-          const teamResponse = await shiftApi.getTeamShifts();
-          setTeamShifts(teamResponse.data.shiftsByDepartment || {});
+          const upcomingResponse = await shiftApi.getMyUpcomingShifts({ days: 30 });
+          setUpcomingShifts(upcomingResponse.data.shifts || []);
+          console.log('[ShiftsScreen] Upcoming shifts loaded:', upcomingResponse.data.shifts?.length);
         } catch (error) {
-          console.log('Could not fetch team shifts');
+          console.error('[ShiftsScreen] Error fetching upcoming shifts:', error);
+          toast.error('Failed to load upcoming shifts');
         }
       }
     } catch (error) {
-      console.error('Error fetching shifts:', error);
+      console.error('[ShiftsScreen] Error fetching shifts:', error);
       toast.error('Failed to load your shifts');
     } finally {
       setLoading(false);
@@ -180,56 +194,74 @@ export function ShiftsManagementScreen() {
           </div>
         </CardContent>
       </Card>
-      <Card><CardContent className="p-8 text-center"><Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" /><p className="text-sm font-medium text-gray-900 mb-1">Coming Soon</p><p className="text-xs text-gray-600">30-day calendar view in development</p></CardContent></Card>
-    </div>
-  );
 
-  const renderTeamTab = () => (
-    <div className="space-y-4 pb-20">
-      <Card className="bg-purple-50 border-purple-200">
-        <CardContent className="p-4">
-          <div className="flex gap-3">
-            <Users className="w-5 h-5 text-purple-600 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-purple-900">Team Shifts</p>
-              <p className="text-xs text-purple-700 mt-1">View your team's shift assignments</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      {!canViewTeam ? (
-        <Card><CardContent className="p-8 text-center"><AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" /><p className="text-sm font-medium text-gray-900 mb-1">Access Restricted</p><p className="text-xs text-gray-600">You don't have permission to view team shifts</p></CardContent></Card>
-      ) : Object.keys(teamShifts).length === 0 ? (
-        <Card><CardContent className="p-8 text-center"><Users className="w-12 h-12 text-gray-400 mx-auto mb-3" /><p className="text-sm font-medium text-gray-900 mb-1">No team shifts found</p><p className="text-xs text-gray-600">Your team hasn't been assigned shifts yet</p></CardContent></Card>
+      {loading ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1A2B3C] mx-auto" />
+            <p className="text-sm text-gray-600 mt-2">Loading your schedule...</p>
+          </CardContent>
+        </Card>
+      ) : upcomingShifts.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-sm font-medium text-gray-900 mb-1">No upcoming shifts</p>
+            <p className="text-xs text-gray-600">You don't have any shifts scheduled for the next 30 days</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-4">
-          {Object.entries(teamShifts).map(([department, shifts]: [string, any]) => (
-            <Card key={department}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" />
-                  <p className="text-sm font-semibold text-gray-900">{department || 'Unassigned'}</p>
-                  <Badge variant="outline" className="text-xs">{shifts.length} members</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {shifts.map((member: any) => (
-                  <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+        <div className="space-y-3">
+          {upcomingShifts.map((shift, index) => {
+            const ShiftIcon = getShiftTypeIcon(shift.startTime);
+            const isToday = new Date(shift.date).toDateString() === new Date().toDateString();
+            const isTomorrow = new Date(shift.date).toDateString() === new Date(Date.now() + 86400000).toDateString();
+            
+            return (
+              <Card key={`${shift.date}-${shift.templateName}-${index}`} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-600">
-                        {member.userName.charAt(0)}
+                      <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <ShiftIcon className="w-5 h-5 text-amber-600" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{member.userName}</p>
-                        <p className="text-xs text-gray-600">{formatTime(member.startTime)} - {formatTime(member.endTime)}</p>
+                        <p className="text-sm font-semibold text-gray-900">{shift.templateName}</p>
+                        <p className="text-xs text-gray-600">
+                          {isToday ? 'Today' : isTomorrow ? 'Tomorrow' : new Date(shift.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-xs">{member.status}</Badge>
+                    {shift.isException && (
+                      <Badge variant="outline" className="text-amber-600 border-amber-600">
+                        Exception
+                      </Badge>
+                    )}
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <span className="font-medium">
+                        {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
+                      </span>
+                    </div>
+                    {shift.breakDurationMinutes > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Coffee className="w-4 h-4 text-gray-400" />
+                        <span>{shift.breakDurationMinutes} min break</span>
+                      </div>
+                    )}
+                    {shift.exceptionType && (
+                      <div className="flex items-center gap-2 text-xs text-amber-700">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="capitalize">{shift.exceptionType.replace(/_/g, ' ')}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
@@ -243,14 +275,12 @@ export function ShiftsManagementScreen() {
           <p className="text-xs text-gray-600 mt-0.5">View and manage your shift schedule</p>
         </div>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="my-schedule">My Schedule</TabsTrigger>
             <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
           </TabsList>
           <TabsContent value="my-schedule">{renderMyScheduleTab()}</TabsContent>
           <TabsContent value="upcoming">{renderUpcomingTab()}</TabsContent>
-          <TabsContent value="team">{renderTeamTab()}</TabsContent>
         </Tabs>
       </div>
     </div>
