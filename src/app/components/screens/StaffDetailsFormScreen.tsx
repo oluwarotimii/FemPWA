@@ -53,6 +53,7 @@ interface StaffDetails {
   highest_qualification: string;
   university_school: string;
   year_of_graduation: string;
+  course_of_study: string;
   professional_certifications: string;
   languages_known: string;
   experience_years: string;
@@ -137,6 +138,7 @@ export function StaffDetailsFormScreen() {
     highest_qualification: '',
     university_school: '',
     year_of_graduation: '',
+    course_of_study: '',
     professional_certifications: '',
     languages_known: '',
     experience_years: '',
@@ -156,7 +158,7 @@ export function StaffDetailsFormScreen() {
     dependents: [],
   });
 
-  const totalSteps = 7;
+  const totalSteps = 6; // Reduced from 7 - removed Employment Details step (now set by HR)
 
   // Calculate completion percentage based on filled fields
   const calculateCompletionPercentage = () => {
@@ -612,26 +614,25 @@ export function StaffDetailsFormScreen() {
               style={{ display: 'none' }}
               id="profile-image-upload"
             />
-            <label htmlFor="profile-image-upload">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex items-center gap-2 cursor-pointer"
-                disabled={uploadingImage}
-              >
-                {uploadingImage ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1A2B3C]" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Camera className="w-4 h-4" />
-                    {profileImagePreview ? 'Change Photo' : 'Upload Photo'}
-                  </>
-                )}
-              </Button>
-            </label>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex items-center gap-2 cursor-pointer"
+              disabled={uploadingImage}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploadingImage ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1A2B3C]" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Camera className="w-4 h-4" />
+                  {profileImagePreview ? 'Change Photo' : 'Upload Photo'}
+                </>
+              )}
+            </Button>
             <p className="text-xs text-gray-500 mt-2">
               JPG, PNG or GIF. Max size 5MB.
             </p>
@@ -698,30 +699,6 @@ export function StaffDetailsFormScreen() {
               <SelectItem value="O-">O-</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="department">Department</Label>
-          <div className="mt-1 p-3 bg-gray-100 rounded-md border border-gray-300">
-            <p className="text-sm font-medium text-gray-700">
-              {formData.department_name || 'Not assigned'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Department is set by HR during invitation
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <Label htmlFor="branch">Branch</Label>
-          <div className="mt-1 p-3 bg-gray-100 rounded-md border border-gray-300">
-            <p className="text-sm font-medium text-gray-700">
-              {formData.branch_name || 'Not assigned'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Branch is set by HR during invitation
-            </p>
-          </div>
         </div>
 
         <div>
@@ -897,17 +874,6 @@ export function StaffDetailsFormScreen() {
             className="mt-1"
           />
         </div>
-
-        <div>
-          <Label htmlFor="bank_ifsc_code">IFSC Code *</Label>
-          <Input
-            id="bank_ifsc_code"
-            placeholder="Enter IFSC code"
-            value={formData.bank_ifsc_code}
-            onChange={(e) => handleInputChange('bank_ifsc_code', e.target.value)}
-            className="mt-1"
-          />
-        </div>
       </div>
     </div>
   );
@@ -956,6 +922,17 @@ export function StaffDetailsFormScreen() {
             placeholder="2020"
             value={formData.year_of_graduation}
             onChange={(e) => handleInputChange('year_of_graduation', e.target.value)}
+            className="mt-1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="course_of_study">Course of Study</Label>
+          <Input
+            id="course_of_study"
+            placeholder="e.g., Computer Science, Accounting"
+            value={formData.course_of_study || ''}
+            onChange={(e) => handleInputChange('course_of_study', e.target.value)}
             className="mt-1"
           />
         </div>
@@ -1333,29 +1310,7 @@ export function StaffDetailsFormScreen() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <h4 className="font-medium text-[#1A2B3C] flex items-center gap-2">
-              <Briefcase className="w-4 h-4" />
-              Employment Details
-            </h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div><span className="text-gray-500">Employee ID:</span> {formData.employee_id || '-'}</div>
-              <div><span className="text-gray-500">Designation:</span> {formData.designation || '-'}</div>
-              <div><span className="text-gray-500">Department:</span> {departments.find(d => d.id.toString() === formData.department_id)?.name || '-'}</div>
-              <div><span className="text-gray-500">Branch:</span> {branches.find(b => b.id.toString() === formData.branch_id)?.name || '-'}</div>
-              <div><span className="text-gray-500">Joining Date:</span> {formData.joining_date || '-'}</div>
-              <div><span className="text-gray-500">Employment Type:</span> {formData.employment_type || '-'}</div>
-              <div><span className="text-gray-500">Work Mode:</span> {formData.work_mode || '-'}</div>
-              <div><span className="text-gray-500">Weekly Hours:</span> {formData.weekly_working_hours || '-'}</div>
-              <div><span className="text-gray-500">Overtime Eligible:</span> {formData.overtime_eligibility ? 'Yes' : 'No'}</div>
-              <div><span className="text-gray-500">Notice Period:</span> {formData.notice_period_days} days</div>
-              <div><span className="text-gray-500">Probation End:</span> {formData.probation_end_date || '-'}</div>
-              <div><span className="text-gray-500">Contract End:</span> {formData.contract_end_date || '-'}</div>
-              <div><span className="text-gray-500">Gratuity:</span> {formData.gratuity_applicable ? 'Applicable' : 'Not Applicable'}</div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Employment Details removed - now set by HR during invitation */}
 
         <Card>
           <CardContent className="p-4 space-y-2">
@@ -1506,9 +1461,8 @@ export function StaffDetailsFormScreen() {
               {step === 2 && renderContactInfo()}
               {step === 3 && renderBankInfo()}
               {step === 4 && renderEducation()}
-              {step === 5 && renderEmploymentDetails()}
-              {step === 6 && renderDependents()}
-              {step === 7 && renderReview()}
+              {step === 5 && renderDependents()}
+              {step === 6 && renderReview()}
             </div>
 
             {/* Navigation Buttons */}
