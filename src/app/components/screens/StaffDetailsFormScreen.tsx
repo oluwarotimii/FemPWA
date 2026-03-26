@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Briefcase, Banknote, Phone, MapPin, GraduationCap, FileText, AlertCircle, CheckCircle, Save, ArrowRight, ArrowLeft, Users, Heart, Calendar, DollarSign, FileCheck } from 'lucide-react';
+import { User, Briefcase, Banknote, Phone, MapPin, GraduationCap, FileText, AlertCircle, CheckCircle, Save, ArrowRight, ArrowLeft, Users, Heart, Calendar, DollarSign, FileCheck, Camera, Upload, X } from 'lucide-react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -95,6 +95,12 @@ export function StaffDetailsFormScreen() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  
+  // Image upload state
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<StaffDetails>({
     employee_id: '',
@@ -183,8 +189,8 @@ export function StaffDetailsFormScreen() {
   const fetchDepartmentsAndBranches = async () => {
     try {
       const [deptResponse, branchResponse, locationResponse] = await Promise.all([
-        apiClient.get('/departments'),
-        apiClient.get('/branches'),
+        apiClient.get('/staff-invitation/departments'),
+        apiClient.get('/staff-invitation/branches'),
         apiClient.get('/locations')
       ]);
 
@@ -199,7 +205,6 @@ export function StaffDetailsFormScreen() {
       }
     } catch (error) {
       console.error('Error fetching departments/branches/locations:', error);
-      // Set default empty arrays on error
       setDepartments([]);
       setBranches([]);
       setLocations([]);
@@ -216,10 +221,16 @@ export function StaffDetailsFormScreen() {
         return;
       }
 
+      // Get staff data which includes invitation info
       const response = await apiClient.get(`/staff/${userId}`);
       if (response.data?.success && response.data?.data?.staff) {
         const staff = response.data.data.staff;
         setExistingStaffData(staff);
+
+        // Load existing profile picture if available
+        if (staff.profile_picture) {
+          setProfileImagePreview(staff.profile_picture);
+        }
 
         // Check if form is already filled - check critical fields
         const isFilled = staff.employee_id && staff.designation && staff.phone_number &&
@@ -253,14 +264,14 @@ export function StaffDetailsFormScreen() {
             dependentsData = staff.dependents;
           }
 
-          // Pre-fill with existing data
+          // Pre-fill with existing data (department/branch from invitation or user selection)
           setFormData({
             ...formData,
-            employee_id: staff.employee_id || '',
+            employee_id: staff.employee_id || `EMP${userId}`,
             designation: staff.designation || '',
             department_id: staff.department_id?.toString() || '',
             branch_id: staff.branch_id?.toString() || '',
-            joining_date: staff.joining_date || '',
+            joining_date: staff.joining_date || new Date().toISOString().split('T')[0],
             employment_type: staff.employment_type || 'permanent',
             work_mode: staff.work_mode || 'onsite',
             work_email: staff.work_email || '',
@@ -314,6 +325,65 @@ export function StaffDetailsFormScreen() {
 
   const handleInputChange = (field: keyof StaffDetails, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Image upload handlers
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5MB');
+        return;
+      }
+      setProfileImage(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setProfileImage(null);
+    setProfileImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadProfileImage = async (userId: number): Promise<string | null> => {
+    if (!profileImage) return null;
+
+    try {
+      setUploadingImage(true);
+      const formDataImg = new FormData();
+      formDataImg.append('profile_picture', profileImage);
+
+      const response = await apiClient.post(`/staff/${userId}/upload-photo`, formDataImg, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data?.success) {
+        return response.data.data.profile_picture_url;
+      }
+      return null;
+    } catch (error: any) {
+      console.error('Error uploading profile image:', error);
+      toast.error('Failed to upload profile image');
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const validateStep = (currentStep: number): boolean => {
@@ -439,16 +509,23 @@ export function StaffDetailsFormScreen() {
       const response = await apiClient.put(`/staff/${userId}`, payload);
 
       if (response.data?.success) {
+        // Upload profile image if provided
+        let profileImageUrl = null;
+        if (profileImage) {
+          profileImageUrl = await uploadProfileImage(userId);
+        }
+
         toast.success('Profile completed successfully! Redirecting to dashboard...');
-        
+
         // Update user context to mark profile as complete
         if (user) {
           updateUser({
             ...user,
-            needs_profile_completion: false
+            needs_profile_completion: false,
+            avatar: profileImageUrl || user.avatar
           });
         }
-        
+
         // Navigate to dashboard after a short delay
         setTimeout(() => {
           navigate('/dashboard');
@@ -495,7 +572,67 @@ export function StaffDetailsFormScreen() {
         <User className="w-5 h-5 text-[#1A2B3C]" />
         Personal Information
       </h3>
-      
+
+      {/* Profile Image Upload */}
+      <div className="mb-6">
+        <Label className="text-sm font-medium text-gray-700 mb-2 block">Profile Photo</Label>
+        <div className="flex items-center gap-4">
+          {profileImagePreview ? (
+            <div className="relative">
+              <img
+                src={profileImagePreview}
+                alt="Profile preview"
+                className="w-24 h-24 rounded-full object-cover border-2 border-[#1A2B3C]"
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+              <User className="w-10 h-10 text-gray-400" />
+            </div>
+          )}
+          <div className="flex-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              style={{ display: 'none' }}
+              id="profile-image-upload"
+            />
+            <label htmlFor="profile-image-upload">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center gap-2 cursor-pointer"
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1A2B3C]" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-4 h-4" />
+                    {profileImagePreview ? 'Change Photo' : 'Upload Photo'}
+                  </>
+                )}
+              </Button>
+            </label>
+            <p className="text-xs text-gray-500 mt-2">
+              JPG, PNG or GIF. Max size 5MB.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="date_of_birth">Date of Birth *</Label>
@@ -1211,7 +1348,8 @@ export function StaffDetailsFormScreen() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div><span className="text-gray-500">Employee ID:</span> {formData.employee_id || '-'}</div>
               <div><span className="text-gray-500">Designation:</span> {formData.designation || '-'}</div>
-              <div><span className="text-gray-500">Department:</span> {formData.department_id || '-'}</div>
+              <div><span className="text-gray-500">Department:</span> {departments.find(d => d.id.toString() === formData.department_id)?.name || '-'}</div>
+              <div><span className="text-gray-500">Branch:</span> {branches.find(b => b.id.toString() === formData.branch_id)?.name || '-'}</div>
               <div><span className="text-gray-500">Joining Date:</span> {formData.joining_date || '-'}</div>
               <div><span className="text-gray-500">Employment Type:</span> {formData.employment_type || '-'}</div>
               <div><span className="text-gray-500">Work Mode:</span> {formData.work_mode || '-'}</div>

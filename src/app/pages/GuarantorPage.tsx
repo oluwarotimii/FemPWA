@@ -88,6 +88,11 @@ export function GuarantorPage() {
   const [formData, setFormData] = useState<GuarantorInput>(emptyForm);
 
   useEffect(() => {
+    // Set staff_id from localStorage on mount
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setFormData(prev => ({ ...prev, staff_id: parseInt(userId) }));
+    }
     loadGuarantors();
   }, []);
 
@@ -96,29 +101,24 @@ export function GuarantorPage() {
       setLoading(true);
       setError(null);
 
-      // Get current user's staff ID first
-      const staffResponse = await fetch('/api/staff/me', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      });
-
-      if (!staffResponse.ok) {
-        throw new Error('Failed to load staff profile');
+      // Get current user's staff ID from context or localStorage
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        throw new Error('User ID not found');
       }
 
-      const staffData = await staffResponse.json();
-      const staffId = staffData.data.staff.id;
-
-      // Load guarantors
-      const response = await guarantorApi.getGuarantors(staffId);
+      // Load guarantors using the API client
+      const response = await guarantorApi.getGuarantors(parseInt(userId));
       if (response.success) {
-        setGuarantors(response.data.guarantors);
+        setGuarantors(response.data.guarantors || []);
+      } else {
+        setGuarantors([]);
       }
     } catch (err: any) {
       console.error('Error loading guarantors:', err);
       setError(err.message || 'Failed to load guarantors');
       toast.error('Failed to load guarantors');
+      setGuarantors([]);
     } finally {
       setLoading(false);
     }

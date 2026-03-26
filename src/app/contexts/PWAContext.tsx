@@ -1,19 +1,27 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 interface PWAContextType {
-  deferredPrompt: Event | null;
+  deferredPrompt: BeforeInstallPromptEvent | null;
   isInstallable: boolean;
   isIOS: boolean;
+  isInstalled: boolean;
   showInstallPrompt: () => void;
   hideInstallPrompt: () => void;
+  installApp: () => Promise<void>;
+}
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
 const PWAContext = createContext<PWAContextType | undefined>(undefined);
 
 export function PWAProvider({ children }: { children: ReactNode }) {
-  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
     // Detect if the user is on iOS
@@ -21,48 +29,64 @@ export function PWAProvider({ children }: { children: ReactNode }) {
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     setIsIOS(isIOSDevice);
 
+    // Check if already installed (running as PWA)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isWindowControlsOverlay = window.matchMedia('(display-mode: window-controls-overlay)').matches;
+    setIsInstalled(isStandalone || isWindowControlsOverlay);
+
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
       // Stash the event so it can be triggered later
-      setDeferredPrompt(e);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      setDeferredPrompt(promptEvent);
       // Update UI to notify the user they can install the PWA
       setIsInstallable(true);
+      console.log('PWA install prompt ready');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // FOR TESTING: Force the install prompt to appear immediately
-    // In a real app, you would remove this timeout or condition it behind a flag
-    const timer = setTimeout(() => {
-      setIsInstallable(true); // Force showing the prompt for testing
-    }, 1000);
+    // Listen for when the app is installed
+    window.addEventListener('appinstalled', () => {
+      console.log('PWA installed successfully');
+      setIsInstalled(true);
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    });
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      clearTimeout(timer);
     };
   }, []);
 
-  const showInstallPrompt = () => {
+  const installApp = async () => {
     if (deferredPrompt) {
-      // @ts-ignore - Cast to BeforeInstallPromptEvent
-      deferredPrompt.prompt();
-      // Wait for the user to respond to the prompt
-      // @ts-ignore
-      deferredPrompt.userChoice.then((choiceResult: { outcome: string }) => {
+      try {
+        // Show the install prompt
+        await deferredPrompt.prompt();
+        // Wait for the user to respond to the prompt
+        const choiceResult = await deferredPrompt.userChoice;
         if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install the prompt');
+          console.log('User accepted the install prompt');
         } else {
           console.log('User dismissed the install prompt');
         }
         setDeferredPrompt(null);
         setIsInstallable(false);
-      });
+      } catch (error) {
+        console.error('Error installing PWA:', error);
+      }
+    } else if (isIOS) {
+      // For iOS, we can't programmatically install, but we can show instructions
+      console.log('iOS detected - show manual install instructions');
     } else {
-      // If no deferred prompt, just hide the notification
-      setIsInstallable(false);
+      console.log('No install prompt available');
     }
+  };
+
+  const showInstallPrompt = () => {
+    installApp();
   };
 
   const hideInstallPrompt = () => {
@@ -75,8 +99,10 @@ export function PWAProvider({ children }: { children: ReactNode }) {
         deferredPrompt,
         isInstallable,
         isIOS,
+        isInstalled,
         showInstallPrompt,
         hideInstallPrompt,
+        installApp,
       }}
     >
       {children}

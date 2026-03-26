@@ -12,6 +12,10 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      devOptions: {
+        enabled: false
+      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
         runtimeCaching: [
@@ -32,11 +36,12 @@ export default defineConfig({
         name: 'Femtech Human Resource',
         short_name: 'Femtech HR',
         description: 'Employee self-service portal for attendance, leave management, and HR tasks',
-        theme_color: '#4f46e5',
+        theme_color: '#1A2B3C',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
         scope: '/',
+        orientation: 'portrait-primary',
         icons: [
           {
             src: '/icons/icon-192x192.svg',

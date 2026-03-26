@@ -13,6 +13,7 @@ interface User {
   department?: string;
   needs_password_change?: boolean;
   needs_profile_completion?: boolean;
+  profile_picture?: string;
 }
 
 interface Permissions {
@@ -67,9 +68,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('authToken');
+      // Check for token in localStorage (persistent) or sessionStorage (temporary)
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
 
       if (token) {
+        // Check if token has expired (for persistent logins)
+        const tokenExpiry = localStorage.getItem('tokenExpiry');
+        if (tokenExpiry) {
+          const expiryTime = parseInt(tokenExpiry);
+          if (Date.now() > expiryTime) {
+            // Token has expired
+            console.log('Token has expired, logging out');
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('rememberMe');
+            localStorage.removeItem('tokenExpiry');
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+        }
+
         // Load permissions from localStorage
         const storedPermissions = localStorage.getItem('permissions');
         if (storedPermissions) {
@@ -120,6 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If the token is expired/invalid, clear everything
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
+      localStorage.removeItem('rememberMe');
+      localStorage.removeItem('tokenExpiry');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -166,8 +187,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('No token received from server');
       }
 
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('userId', userData.id.toString());
+      // Store token with persistence based on rememberMe choice
+      if (rememberMe) {
+        // Persistent login - store for 30 days
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('userId', userData.id.toString());
+        localStorage.setItem('rememberMe', 'true');
+        // Set expiry timestamp (30 days from now)
+        const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
+        localStorage.setItem('tokenExpiry', expiryTime.toString());
+      } else {
+        // Session-only login - clear on browser close
+        sessionStorage.setItem('authToken', token);
+        sessionStorage.setItem('userId', userData.id.toString());
+        // Also store in localStorage for current session
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('userId', userData.id.toString());
+        localStorage.removeItem('rememberMe');
+        localStorage.removeItem('tokenExpiry');
+      }
 
       // Store permissions if provided
       if (userPermissions) {
@@ -176,7 +214,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Permissions stored:', userPermissions);
       }
 
-      setUser(userData);
+      // Map the response to our User interface
+      const mappedUser: User = {
+        id: userData.id,
+        email: userData.email,
+        fullName: userData.fullName,
+        roleId: userData.roleId,
+        branchId: userData.branchId,
+        avatar: userData.profile_picture || userData.avatar,
+        phone: userData.phone,
+        designation: userData.designation,
+        department: userData.department,
+        needs_password_change: userData.needs_password_change,
+        needs_profile_completion: userData.needs_profile_completion
+      };
+
+      setUser(mappedUser);
       console.log('Login successful! Token stored.');
 
       // Check if user needs to change password after login
@@ -184,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('User needs to change password');
       }
 
-      return userData;
+      return mappedUser;
     } catch (error: any) {
       console.error('Login error:', error);
       throw new Error(error.response?.data?.message || error.message || 'Invalid credentials');
@@ -198,9 +251,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setPermissions(null);
+      // Clear all storage
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
       localStorage.removeItem('permissions');
+      localStorage.removeItem('rememberMe');
+      localStorage.removeItem('tokenExpiry');
+      sessionStorage.removeItem('authToken');
+      sessionStorage.removeItem('userId');
     }
   };
 

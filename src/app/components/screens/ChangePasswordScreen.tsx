@@ -39,8 +39,17 @@ export function ChangePasswordScreen() {
 
       toast.success(response.message);
 
-      // Redirect to dashboard after successful password change
-      navigate('/dashboard');
+      // Update user context to mark password as changed
+      if (user) {
+        updateUser({
+          ...user,
+          needs_password_change: false
+        });
+      }
+
+      // Redirect to staff details form to complete profile
+      toast.info('Please complete your profile information');
+      navigate('/staff-details-form');
 
       // Reset form
       setCurrentPassword('');
