@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, Briefcase, Heart, Users, CheckCircle, XCircle, Clock, AlertCircle, History } from 'lucide-react';
+import { Plus, Calendar, Briefcase, Heart, Users, CheckCircle, XCircle, Clock, AlertCircle, History, FileText, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
@@ -130,22 +130,36 @@ export function LeaveManagementScreen() {
     setLeaveBalances(balances);
   };
 
-  // ❌ DISABLED: No one should be able to approve/reject leave requests from the app
-  // Only through dashboard/backend with proper authorization
+  // Fetch attachments for a leave request
+  const fetchAttachments = async (leaveRequestId: number) => {
+    try {
+      const response = await leaveApi.getLeaveRequestAttachments(leaveRequestId);
+      if (response.success && response.data?.files) {
+        // Update selectedRequest with attachments
+        setSelectedRequest(prev => prev ? {
+          ...prev,
+          attachments: response.data.files.map((f: any) => ({
+            file_name: f.file_name,
+            file_url: f.file_url
+          }))
+        } : null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch attachments:', error);
+      // Don't show error toast - attachments are optional
+    }
+  };
+
+  // Handle approve/reject - opens modal
   const handleApproveReject = (request: LeaveRequest, type: 'approve' | 'reject') => {
-    toast.error('Leave approval/rejection is disabled', {
-      description: 'Please contact HR or use the admin dashboard to manage leave requests'
-    });
-    // Do nothing - disabled
-    return;
-    
-    // Original code commented out:
-    // setSelectedRequest(request);
-    // setActionType(type);
-    // setActionDialogOpen(true);
-    // if (type === 'reject') {
-    //   setRejectionReason('');
-    // }
+    setSelectedRequest(request);
+    setActionType(type);
+    setActionDialogOpen(true);
+    if (type === 'reject') {
+      setRejectionReason('');
+    }
+    // Fetch attachments for this leave request
+    fetchAttachments(request.id);
   };
 
   const confirmAction = async () => {
@@ -225,14 +239,6 @@ export function LeaveManagementScreen() {
           </p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/leave-history')}
-            className="hidden sm:flex h-9 px-3"
-          >
-            <History className="w-4 h-4" />
-          </Button>
           <Button
             onClick={() => navigate('/new-leave')}
             className="bg-[#1A2B3C] hover:bg-[#2C3E50] text-white h-9 px-3"
@@ -444,17 +450,8 @@ export function LeaveManagementScreen() {
         </TabsContent>
       </Tabs>
 
-      {/* Floating Action Buttons */}
+      {/* Floating Action Button */}
       <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 flex flex-col gap-2 sm:gap-3 z-10">
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => navigate('/leave-history')}
-          className="w-12 h-12 sm:w-14 sm:h-14 bg-white hover:bg-gray-50 text-[#1A2B3C] rounded-full shadow-lg flex items-center justify-center border-2 border-[#1A2B3C]"
-          title="View Leave History"
-        >
-          <History className="w-5 h-5 sm:w-6 sm:h-6" />
-        </motion.button>
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
@@ -467,7 +464,7 @@ export function LeaveManagementScreen() {
 
       {/* Action Dialog */}
       <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md mx-2">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg mx-2 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
               {actionType === 'approve' ? (
@@ -492,32 +489,113 @@ export function LeaveManagementScreen() {
           </DialogHeader>
 
           {selectedRequest && (
-            <div className="py-3 sm:py-4 space-y-2 sm:space-y-3">
-              <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
-                <div className="font-medium text-gray-900 text-sm sm:text-base">
-                  {selectedRequest.leave_type_name || 'Leave Request'}
+            <div className="py-3 sm:py-4 space-y-3 sm:space-y-4">
+              {/* Request Details Card */}
+              <div className="border border-gray-200 rounded-lg p-3 sm:p-4 space-y-3">
+                {/* Header with name and status */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
+                      {selectedRequest.user_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm sm:text-base">
+                        {selectedRequest.user_name || 'Employee'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge className={`${getStatusColor(selectedRequest.status)} text-xs shrink-0`}>
+                    {getStatusIcon(selectedRequest.status)}
+                    <span className="ml-1">{getStatusLabel(selectedRequest.status)}</span>
+                  </Badge>
                 </div>
-                <div className="text-xs sm:text-sm text-gray-600 mt-1 line-clamp-2">{selectedRequest.reason}</div>
-                <div className="text-xs text-gray-500 mt-2">
-                  {new Date(selectedRequest.start_date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}{' '}
-                  -{' '}
-                  {new Date(selectedRequest.end_date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
+
+                {/* Leave Type */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-gray-50 p-2 rounded">
+                    <div className="text-xs text-gray-500 mb-1">Leave Type</div>
+                    <div className="font-medium text-gray-900 text-sm">
+                      {selectedRequest.leave_type_name || 'General'}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded">
+                    <div className="text-xs text-gray-500 mb-1">Duration</div>
+                    <div className="font-medium text-gray-900 text-sm">
+                      {calculateDays(selectedRequest.start_date, selectedRequest.end_date)} day{calculateDays(selectedRequest.start_date, selectedRequest.end_date) > 1 ? 's' : ''}
+                    </div>
+                  </div>
                 </div>
-                {selectedRequest.user_name && (
-                  <div className="text-xs text-gray-500 mt-2">
-                    Requested by: {selectedRequest.user_name}
+
+                {/* Dates */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">Start Date</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {new Date(selectedRequest.start_date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">End Date</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {new Date(selectedRequest.end_date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reason */}
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Reason for Leave</div>
+                  <div className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                    {selectedRequest.reason || 'No reason provided'}
+                  </div>
+                </div>
+
+                {/* Attachments */}
+                {selectedRequest.attachments && selectedRequest.attachments.length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                      <Briefcase className="w-3 h-3" />
+                      Attachments ({selectedRequest.attachments.length})
+                    </div>
+                    <div className="space-y-1">
+                      {selectedRequest.attachments.map((attachment: any, index: number) => (
+                        <a
+                          key={index}
+                          href={attachment.file_url || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-2 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition-colors group"
+                        >
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm text-blue-900 flex-1 truncate">
+                            {attachment.file_name || `Attachment ${index + 1}`}
+                          </span>
+                          <ExternalLink className="w-3 h-3 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
+              {/* Rejection Reason Input */}
               {actionType === 'reject' && (
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
@@ -535,7 +613,7 @@ export function LeaveManagementScreen() {
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-3">
+          <DialogFooter className="gap-2 sm:gap-3 sticky bottom-0 bg-white pt-3 border-t">
             <Button
               variant="outline"
               onClick={() => {

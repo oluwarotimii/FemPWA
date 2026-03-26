@@ -40,14 +40,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user needs to change password or fill personal details
-  if (user?.needs_password_change) {
-    return <Navigate to="/change-password" replace />;
-  }
-
-  if (user?.needs_profile_completion) {
-    return <Navigate to="/staff-details-form" replace />;
-  }
+  // Don't redirect for password change or profile completion - let user access dashboard
+  // These are now optional and can be accessed from settings/profile
 
   // Don't render children until user is loaded
   if (!user) {

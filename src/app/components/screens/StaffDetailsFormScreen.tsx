@@ -27,7 +27,9 @@ interface StaffDetails {
   employee_id: string;
   designation: string;
   department_id: string;
+  department_name: string; // Added for display
   branch_id: string;
+  branch_name: string; // Added for display
   joining_date: string;
   employment_type: string;
   work_mode: string;
@@ -92,6 +94,9 @@ export function StaffDetailsFormScreen() {
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
   const [existingStaffData, setExistingStaffData] = useState<any | null>(null);
+  const [hasExistingData, setHasExistingData] = useState(false);
+  
+  // Removed - no longer fetching departments/branches for selection
   const [departments, setDepartments] = useState<Department[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -106,7 +111,9 @@ export function StaffDetailsFormScreen() {
     employee_id: '',
     designation: '',
     department_id: '',
+    department_name: '',
     branch_id: '',
+    branch_name: '',
     joining_date: '',
     employment_type: 'permanent',
     work_mode: 'onsite',
@@ -389,7 +396,7 @@ export function StaffDetailsFormScreen() {
   const validateStep = (currentStep: number): boolean => {
     switch (currentStep) {
       case 1: // Personal Information
-        if (!formData.date_of_birth || !formData.gender || !formData.phone_number || !formData.department_id || !formData.branch_id) {
+        if (!formData.date_of_birth || !formData.gender || !formData.phone_number) {
           toast.error('Please fill in all required personal information fields marked with *');
           return false;
         }
@@ -462,8 +469,7 @@ export function StaffDetailsFormScreen() {
       const payload = {
         employee_id: formData.employee_id || `EMP${userId}`,
         designation: formData.designation,
-        department_id: parseInt(formData.department_id) || 0,
-        branch_id: parseInt(formData.branch_id) || 0,
+        // Don't send department_id and branch_id - they're set by HR
         joining_date: formData.joining_date,
         employment_type: formData.employment_type,
         work_mode: formData.work_mode,
@@ -475,8 +481,8 @@ export function StaffDetailsFormScreen() {
         gender: formData.gender,
         marital_status: formData.marital_status,
         blood_group: formData.blood_group,
-        current_address_id: formData.current_address,
-        permanent_address_id: formData.permanent_address,
+        current_address: formData.current_address,
+        permanent_address: formData.permanent_address,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
         emergency_contact_relationship: formData.emergency_contact_relationship,
@@ -695,39 +701,27 @@ export function StaffDetailsFormScreen() {
         </div>
 
         <div>
-          <Label htmlFor="department_id">Department *</Label>
-          <Select value={formData.department_id} onValueChange={(value) => handleInputChange('department_id', value)}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Select department" />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.length > 0 ? (
-                departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name}</SelectItem>
-                ))
-              ) : (
-                <SelectItem value="loading" disabled>Loading departments...</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="department">Department</Label>
+          <div className="mt-1 p-3 bg-gray-100 rounded-md border border-gray-300">
+            <p className="text-sm font-medium text-gray-700">
+              {formData.department_name || 'Not assigned'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Department is set by HR during invitation
+            </p>
+          </div>
         </div>
 
         <div>
-          <Label htmlFor="branch_id">Branch *</Label>
-          <Select value={formData.branch_id} onValueChange={(value) => handleInputChange('branch_id', value)}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Select branch" />
-            </SelectTrigger>
-            <SelectContent>
-              {branches.length > 0 ? (
-                branches.map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id.toString()}>{branch.name}</SelectItem>
-                ))
-              ) : (
-                <SelectItem value="loading" disabled>Loading branches...</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="branch">Branch</Label>
+          <div className="mt-1 p-3 bg-gray-100 rounded-md border border-gray-300">
+            <p className="text-sm font-medium text-gray-700">
+              {formData.branch_name || 'Not assigned'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Branch is set by HR during invitation
+            </p>
+          </div>
         </div>
 
         <div>

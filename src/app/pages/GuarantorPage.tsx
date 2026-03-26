@@ -54,6 +54,72 @@ const occupationOptions = [
   'Farmer', 'Trader', 'Student', 'Retired', 'Other'
 ];
 
+// Form Field Component - defined outside to prevent focus loss
+interface FormFieldProps {
+  label: string;
+  field: string;
+  type?: string;
+  required?: boolean;
+  options?: any[];
+  icon?: any;
+  formData: any;
+  handleInputChange: (field: string, value: any) => void;
+}
+
+function FormField({
+  label,
+  field,
+  type = 'text',
+  required = false,
+  options = [],
+  icon: Icon,
+  formData,
+  handleInputChange
+}: FormFieldProps) {
+  return (
+    <div className="space-y-1">
+      <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        {Icon && <Icon className="w-4 h-4" />}
+        {label} {required && <span className="text-red-500">*</span>}
+      </Label>
+      {type === 'textarea' ? (
+        <Textarea
+          value={(formData[field] as string) || ''}
+          onChange={(e) => handleInputChange(field, e.target.value)}
+          rows={3}
+          required={required}
+          className="w-full"
+        />
+      ) : type === 'select' ? (
+        <div className="relative">
+          <select
+            value={(formData[field] as string) || ''}
+            onChange={(e) => handleInputChange(field, e.target.value)}
+            required={required}
+            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
+          >
+            <option value="">Select {label}</option>
+            {options.map((opt: any) => (
+              <option key={opt.value || opt} value={opt.value || opt}>
+                {opt.label || opt}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+      ) : (
+        <Input
+          type={type}
+          value={(formData[field] as string) || ''}
+          onChange={(e) => handleInputChange(field, e.target.value)}
+          required={required}
+          className="w-full"
+        />
+      )}
+    </div>
+  );
+}
+
 export function GuarantorPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -68,7 +134,7 @@ export function GuarantorPage() {
   const [viewingDoc, setViewingDoc] = useState<{ type: string; path: string; name: string } | null>(null);
 
   // Form state
-  const emptyForm: GuarantorInput = {
+  const emptyForm: any = {
     staff_id: 0, // Will be set from logged-in user
     first_name: '',
     last_name: '',
@@ -77,12 +143,14 @@ export function GuarantorPage() {
     email: '',
     relationship: '',
     occupation: '',
-    guarantee_type: 'personal',
     address_line_1: '',
     city: '',
     state: '',
     country: 'Nigeria',
-    is_active: true
+    is_active: true,
+    // Document upload fields (not in database, used for form submission)
+    _guarantor_form_file: null,
+    _id_document_file: null
   };
 
   const [formData, setFormData] = useState<GuarantorInput>(emptyForm);
@@ -130,18 +198,38 @@ export function GuarantorPage() {
     setError(null);
 
     try {
+      // Prepare payload without temporary file fields
+      const payload: any = { ...formData };
+      delete payload._guarantor_form_file;
+      delete payload._id_document_file;
+
       if (selectedGuarantor) {
         // Update existing
-        const response = await guarantorApi.updateGuarantor(selectedGuarantor.id, formData);
+        const response = await guarantorApi.updateGuarantor(selectedGuarantor.id, payload);
         if (response.success) {
+          // Upload documents if files were selected
+          if (formData._guarantor_form_file) {
+            await guarantorApi.uploadDocument(selectedGuarantor.id, 'form', formData._guarantor_form_file);
+          }
+          if (formData._id_document_file) {
+            await guarantorApi.uploadDocument(selectedGuarantor.id, 'id', formData._id_document_file);
+          }
           toast.success('Guarantor updated successfully');
           resetForm();
           loadGuarantors();
         }
       } else {
         // Create new
-        const response = await guarantorApi.createGuarantor(formData);
-        if (response.success) {
+        const response = await guarantorApi.createGuarantor(payload);
+        if (response.success && response.data?.guarantor?.id) {
+          const guarantorId = response.data.guarantor.id;
+          // Upload documents if files were selected
+          if (formData._guarantor_form_file) {
+            await guarantorApi.uploadDocument(guarantorId, 'form', formData._guarantor_form_file);
+          }
+          if (formData._id_document_file) {
+            await guarantorApi.uploadDocument(guarantorId, 'id', formData._id_document_file);
+          }
           toast.success('Guarantor added successfully');
           resetForm();
           loadGuarantors();
@@ -174,9 +262,7 @@ export function GuarantorPage() {
       ...guarantor,
       date_of_birth: guarantor.date_of_birth ? guarantor.date_of_birth.split('T')[0] : '',
       id_issue_date: guarantor.id_issue_date ? guarantor.id_issue_date.split('T')[0] : '',
-      id_expiry_date: guarantor.id_expiry_date ? guarantor.id_expiry_date.split('T')[0] : '',
-      guarantee_start_date: guarantor.guarantee_start_date ? guarantor.guarantee_start_date.split('T')[0] : '',
-      guarantee_end_date: guarantor.guarantee_end_date ? guarantor.guarantee_end_date.split('T')[0] : ''
+      id_expiry_date: guarantor.id_expiry_date ? guarantor.id_expiry_date.split('T')[0] : ''
     });
     setSelectedGuarantor(guarantor);
     setShowForm(true);
@@ -217,57 +303,6 @@ export function GuarantorPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Form Field Component
-  const FormField = ({
-    label,
-    field,
-    type = 'text',
-    required = false,
-    options = [],
-    icon: Icon
-  }: any) => (
-    <div className="space-y-1">
-      <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-        {Icon && <Icon className="w-4 h-4" />}
-        {label} {required && <span className="text-red-500">*</span>}
-      </Label>
-      {type === 'textarea' ? (
-        <Textarea
-          value={(formData[field] as string) || ''}
-          onChange={(e) => handleInputChange(field, e.target.value)}
-          rows={3}
-          required={required}
-          className="w-full"
-        />
-      ) : type === 'select' ? (
-        <div className="relative">
-          <select
-            value={(formData[field] as string) || ''}
-            onChange={(e) => handleInputChange(field, e.target.value)}
-            required={required}
-            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
-          >
-            <option value="">Select {label}</option>
-            {options.map((opt: any) => (
-              <option key={opt.value || opt} value={opt.value || opt}>
-                {opt.label || opt}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-      ) : (
-        <Input
-          type={type}
-          value={(formData[field] as string) || ''}
-          onChange={(e) => handleInputChange(field, e.target.value)}
-          required={required}
-          className="w-full"
-        />
-      )}
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 pb-20">
       {/* Header */}
@@ -306,13 +341,13 @@ export function GuarantorPage() {
             <div>
               <h3 className="font-semibold text-blue-900 text-sm">About Guarantors</h3>
               <p className="text-xs text-blue-700 mt-1">
-                Guarantors provide a guarantee or reference for your employment. 
-                You must add at least one guarantor who can vouch for your character. 
-                Upload signed guarantor forms and ID documents for verification.
+                Guarantors provide a reference for your employment.
+                You must add at least one guarantor who can vouch for your character.
+                Upload the signed guarantor form and ID document for verification.
               </p>
               <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                <strong>⚠️ Important:</strong> Once a guarantor is verified by HR, you cannot edit or delete it. 
-                Contact HR admin if you need to make changes to verified guarantors.
+                <strong>⚠️ Important:</strong> Once a guarantor is verified by HR, you cannot edit or delete it.
+                Contact HR admin if you need to make changes.
               </div>
             </div>
           </div>
@@ -541,15 +576,15 @@ export function GuarantorPage() {
                     Personal Information
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="First Name" field="first_name" required icon={User} />
-                    <FormField label="Middle Name" field="middle_name" icon={User} />
-                    <FormField label="Last Name" field="last_name" required icon={User} />
-                    <FormField label="Date of Birth" field="date_of_birth" type="date" icon={Calendar} />
-                    <FormField label="Gender" field="gender" type="select" options={genderOptions} icon={User} />
-                    <FormField label="Phone Number" field="phone_number" type="tel" required icon={Phone} />
-                    <FormField label="Alternate Phone" field="alternate_phone" type="tel" icon={Phone} />
-                    <FormField label="Email" field="email" type="email" icon={Mail} />
-                    <FormField label="Relationship" field="relationship" type="select" options={relationshipOptions} icon={User} />
+                    <FormField label="First Name" field="first_name" required icon={User} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Middle Name" field="middle_name" icon={User} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Last Name" field="last_name" required icon={User} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Date of Birth" field="date_of_birth" type="date" icon={Calendar} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Gender" field="gender" type="select" options={genderOptions} icon={User} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Phone Number" field="phone_number" type="tel" required icon={Phone} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Alternate Phone" field="alternate_phone" type="tel" icon={Phone} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Email" field="email" type="email" icon={Mail} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Relationship" field="relationship" type="select" options={relationshipOptions} icon={User} formData={formData} handleInputChange={handleInputChange} />
                   </div>
                 </div>
 
@@ -560,12 +595,12 @@ export function GuarantorPage() {
                     Address Information
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Address Line 1" field="address_line_1" required icon={MapPin} />
-                    <FormField label="Address Line 2" field="address_line_2" icon={MapPin} />
-                    <FormField label="City" field="city" icon={MapPin} />
-                    <FormField label="State" field="state" type="select" options={nigerianStates} icon={MapPin} />
-                    <FormField label="Postal Code" field="postal_code" icon={MapPin} />
-                    <FormField label="Country" field="country" icon={MapPin} />
+                    <FormField label="Address Line 1" field="address_line_1" required icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Address Line 2" field="address_line_2" icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="City" field="city" icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="State" field="state" type="select" options={nigerianStates} icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Postal Code" field="postal_code" icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Country" field="country" icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
                   </div>
                 </div>
 
@@ -576,11 +611,11 @@ export function GuarantorPage() {
                     Identification Details
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="ID Type" field="id_type" type="select" options={idTypeOptions} icon={Shield} />
-                    <FormField label="ID Number" field="id_number" icon={Shield} />
-                    <FormField label="Issuing Authority" field="id_issuing_authority" icon={Shield} />
-                    <FormField label="Issue Date" field="id_issue_date" type="date" icon={Calendar} />
-                    <FormField label="Expiry Date" field="id_expiry_date" type="date" icon={Calendar} />
+                    <FormField label="ID Type" field="id_type" type="select" options={idTypeOptions} icon={Shield} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="ID Number" field="id_number" icon={Shield} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Issuing Authority" field="id_issuing_authority" icon={Shield} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Issue Date" field="id_issue_date" type="date" icon={Calendar} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Expiry Date" field="id_expiry_date" type="date" icon={Calendar} formData={formData} handleInputChange={handleInputChange} />
                   </div>
                 </div>
 
@@ -591,26 +626,74 @@ export function GuarantorPage() {
                     Employment Information
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Occupation" field="occupation" type="select" options={occupationOptions} icon={Briefcase} />
-                    <FormField label="Employer Name" field="employer_name" icon={Briefcase} />
-                    <FormField label="Employer Address" field="employer_address" icon={MapPin} />
-                    <FormField label="Employer Phone" field="employer_phone" type="tel" icon={Phone} />
+                    <FormField label="Occupation" field="occupation" type="select" options={occupationOptions} icon={Briefcase} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Employer Name" field="employer_name" icon={Briefcase} formData={formData} handleInputChange={handleInputChange} />
+                    <FormField label="Employer Address" field="employer_address" icon={MapPin} formData={formData} handleInputChange={handleInputChange} />
                   </div>
                 </div>
 
-                {/* Guarantee Details */}
+                {/* Document Upload Section */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FileText className="w-5 h-5" />
-                    Guarantee Details
+                    Document Upload
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="Guarantee Type" field="guarantee_type" type="select" options={guaranteeTypeOptions} icon={FileText} />
-                    <FormField label="Guarantee Amount (₦)" field="guarantee_amount" type="number" icon={FileText} />
-                    <FormField label="Start Date" field="guarantee_start_date" type="date" icon={Calendar} />
-                    <FormField label="End Date" field="guarantee_end_date" type="date" icon={Calendar} />
-                    <div className="md:col-span-3">
-                      <FormField label="Terms & Conditions" field="guarantee_terms" type="textarea" icon={FileText} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-700 mb-1">Guarantor Form</p>
+                      <p className="text-xs text-gray-500 mb-2">Upload signed guarantor form (PDF, JPG, PNG)</p>
+                      {formData._guarantor_form_file ? (
+                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          {formData._guarantor_form_file.name}
+                        </div>
+                      ) : (
+                        <label className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded cursor-pointer hover:bg-blue-100 inline-flex items-center gap-1">
+                          <Upload className="w-3 h-3" />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                // Store file for upload on form submission
+                                setFormData(prev => ({ ...prev, _guarantor_form_file: file }));
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                      <Shield className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-700 mb-1">ID Document</p>
+                      <p className="text-xs text-gray-500 mb-2">Upload ID document (PDF, JPG, PNG)</p>
+                      {formData._id_document_file ? (
+                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          {formData._id_document_file.name}
+                        </div>
+                      ) : (
+                        <label className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded cursor-pointer hover:bg-blue-100 inline-flex items-center gap-1">
+                          <Upload className="w-3 h-3" />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setFormData(prev => ({ ...prev, _id_document_file: file }));
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
                 </div>

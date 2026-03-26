@@ -246,6 +246,27 @@ export const leaveApi = {
   },
 
   /**
+   * Get attachments for a leave request
+   * GET /leave/:id/files
+   */
+  getLeaveRequestAttachments: async (leaveRequestId: number): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      files: Array<{
+        id: number;
+        file_name: string;
+        file_url: string;
+        file_type: string;
+        uploaded_at: string;
+      }>;
+    };
+  }> => {
+    const response = await apiClient.get(`/leave/${leaveRequestId}/files`);
+    return response.data;
+  },
+
+  /**
    * Create a new leave request
    * POST /leave/requests
    */

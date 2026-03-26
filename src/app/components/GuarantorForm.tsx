@@ -75,11 +75,10 @@ export function GuarantorForm({ staffId, onClose, onSuccess }: GuarantorFormProp
     occupation: '',
     employer_name: '',
     employer_address: '',
-    employer_phone: '',
+    // Removed employer_phone - not in database schema
     guarantee_type: 'personal',
     guarantee_amount: undefined,
-    guarantee_start_date: '',
-    guarantee_end_date: '',
+    // Removed guarantee_start_date and guarantee_end_date - optional fields not in main form
     guarantee_terms: '',
     is_active: true
   };
@@ -144,9 +143,8 @@ export function GuarantorForm({ staffId, onClose, onSuccess }: GuarantorFormProp
       ...guarantor,
       date_of_birth: guarantor.date_of_birth ? guarantor.date_of_birth.split('T')[0] : '',
       id_issue_date: guarantor.id_issue_date ? guarantor.id_issue_date.split('T')[0] : '',
-      id_expiry_date: guarantor.id_expiry_date ? guarantor.id_expiry_date.split('T')[0] : '',
-      guarantee_start_date: guarantor.guarantee_start_date ? guarantor.guarantee_start_date.split('T')[0] : '',
-      guarantee_end_date: guarantor.guarantee_end_date ? guarantor.guarantee_end_date.split('T')[0] : ''
+      id_expiry_date: guarantor.id_expiry_date ? guarantor.id_expiry_date.split('T')[0] : ''
+      // Removed guarantee_start_date and guarantee_end_date
     });
     setSelectedGuarantor(guarantor);
     setShowList(false);
@@ -531,21 +529,19 @@ export function GuarantorForm({ staffId, onClose, onSuccess }: GuarantorFormProp
                 <InputField label="Occupation" field="occupation" icon={Briefcase} />
                 <InputField label="Employer Name" field="employer_name" icon={Briefcase} />
                 <InputField label="Employer Address" field="employer_address" icon={MapPin} />
-                <InputField label="Employer Phone" field="employer_phone" type="tel" icon={Phone} />
+                {/* Removed employer_phone - not in database schema */}
               </div>
             </div>
 
-            {/* Guarantee Details */}
+            {/* Guarantee Details - Optional */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Guarantee Details
+                Guarantee Details (Optional)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <InputField label="Guarantee Type" field="guarantee_type" type="select" icon={FileText} />
                 <InputField label="Guarantee Amount (₦)" field="guarantee_amount" type="number" icon={FileText} />
-                <InputField label="Start Date" field="guarantee_start_date" type="date" icon={Calendar} />
-                <InputField label="End Date" field="guarantee_end_date" type="date" icon={Calendar} />
                 <div className="md:col-span-3">
                   <InputField label="Terms & Conditions" field="guarantee_terms" type="textarea" icon={FileText} />
                 </div>

@@ -152,24 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Starting login process...');
       const response = await authApi.login({ email, password });
       console.log('Login API response:', response);
-      console.log('Response type:', typeof response);
 
-      if (!response) {
-        console.log('Response is falsy');
+      if (!response || !response.success || !response.data) {
         throw new Error('No response received from server');
-      }
-
-      console.log('Checking response.success...');
-      console.log('response.success value:', response.success);
-      if (!response.success) {
-        console.log('Success is falsy, message:', response.message);
-        throw new Error(response.message || 'Login failed');
-      }
-
-      console.log('Checking response.data existence...');
-      if (!response.data) {
-        console.log('Response.data is falsy:', response.data);
-        throw new Error('No data in response');
       }
 
       console.log('Extracting user and token data...');
@@ -177,30 +162,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = response.data.tokens?.accessToken || response.data.token;
       const userPermissions = response.data.permissions;
 
-      if (!userData) {
-        console.log('User data is falsy:', userData);
-        throw new Error('No user data in response');
-      }
-
-      if (!token) {
-        console.log('Token is falsy:', token);
-        throw new Error('No token received from server');
+      if (!userData || !token) {
+        throw new Error('No user data or token received from server');
       }
 
       // Store token with persistence based on rememberMe choice
       if (rememberMe) {
-        // Persistent login - store for 30 days
         localStorage.setItem('authToken', token);
         localStorage.setItem('userId', userData.id.toString());
         localStorage.setItem('rememberMe', 'true');
-        // Set expiry timestamp (30 days from now)
         const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
         localStorage.setItem('tokenExpiry', expiryTime.toString());
       } else {
-        // Session-only login - clear on browser close
         sessionStorage.setItem('authToken', token);
         sessionStorage.setItem('userId', userData.id.toString());
-        // Also store in localStorage for current session
         localStorage.setItem('authToken', token);
         localStorage.setItem('userId', userData.id.toString());
         localStorage.removeItem('rememberMe');
@@ -211,7 +186,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userPermissions) {
         setPermissions(userPermissions);
         localStorage.setItem('permissions', JSON.stringify(userPermissions));
-        console.log('Permissions stored:', userPermissions);
       }
 
       // Map the response to our User interface
@@ -229,13 +203,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needs_profile_completion: userData.needs_profile_completion
       };
 
+      // Set user state and force a small delay to ensure state propagates
       setUser(mappedUser);
-      console.log('Login successful! Token stored.');
-
-      // Check if user needs to change password after login
-      if (userData.needs_password_change) {
-        console.log('User needs to change password');
-      }
+      console.log('Login successful! User state set.');
+      
+      // Small delay to ensure React state propagates before navigation
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       return mappedUser;
     } catch (error: any) {

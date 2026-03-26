@@ -21,17 +21,10 @@ export function LoginScreen() {
     setLoading(true);
 
     try {
-      const userData = await login(email, password, rememberMe);
+      await login(email, password, rememberMe);
       toast.success('Login successful!');
-
-      // Check if user needs to change password or complete profile
-      if (userData.needs_password_change) {
-        navigate('/change-password');
-      } else if (userData.needs_profile_completion) {
-        navigate('/fill-personal-details');
-      } else {
-        navigate('/dashboard');
-      }
+      // Always navigate to dashboard after login
+      navigate('/dashboard');
     } catch (error) {
       toast.error('Invalid credentials. Please try again.');
     } finally {
