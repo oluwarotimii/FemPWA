@@ -252,11 +252,14 @@ export function StaffDetailsFormScreen() {
       
       if (response.data?.success && response.data?.data?.staff) {
         const staff = response.data.data.staff;
+        console.log('[StaffDetailsForm] Loaded existing staff data:', staff);
+        console.log('[StaffDetailsForm] Staff profile_picture:', staff.profile_picture);
         setExistingStaffData(staff);
 
         // Load existing profile picture if available
         if (staff.profile_picture) {
           setProfileImagePreview(staff.profile_picture);
+          console.log('[StaffDetailsForm] Set profile image preview:', staff.profile_picture);
         }
 
         // Check if form is already filled - check critical fields
@@ -292,8 +295,7 @@ export function StaffDetailsFormScreen() {
           }
 
           // Pre-fill with existing data (department/branch from invitation or user selection)
-          setFormData({
-            ...formData,
+          const prefilledFormData = {
             employee_id: staff.employee_id || `EMP${userId}`,
             designation: staff.designation || '',
             department_id: staff.department_id?.toString() || '',
@@ -309,18 +311,18 @@ export function StaffDetailsFormScreen() {
             gender: staff.gender || '',
             marital_status: staff.marital_status || '',
             blood_group: staff.blood_group || '',
-            current_address: staff.current_address_id || '',
-            permanent_address: staff.permanent_address_id || '',
+            current_address: staff.current_address || '',
+            permanent_address: staff.permanent_address || '',
             emergency_contact_name: staff.emergency_contact_name || '',
             emergency_contact_phone: staff.emergency_contact_phone || '',
             emergency_contact_relationship: staff.emergency_contact_relationship || '',
             bank_name: staff.bank_name || '',
             bank_account_number: staff.bank_account_number || '',
-            // bank_ifsc_code: staff.bank_ifsc_code || '',
             tax_identification_number: staff.tax_identification_number || '',
             highest_qualification: staff.highest_qualification || '',
             university_school: staff.university_school || '',
             year_of_graduation: staff.year_of_graduation || '',
+            course_of_study: staff.course_of_study || '',
             professional_certifications: staff.professional_certifications || '',
             languages_known: staff.languages_known || '',
             experience_years: staff.experience_years || '',
@@ -330,7 +332,7 @@ export function StaffDetailsFormScreen() {
             special_medical_notes: staff.special_medical_notes || '',
             notice_period_days: staff.notice_period_days?.toString() || '30',
             weekly_working_hours: staff.weekly_working_hours?.toString() || '40',
-            overtime_eligibility: staff.overtime_eligibility || false,
+            overtime_eligibility: staff.overtime_eligibility ?? false,
             probation_end_date: staff.probation_end_date || '',
             contract_end_date: staff.contract_end_date || '',
             medical_insurance_id: staff.medical_insurance_id || '',
@@ -338,7 +340,9 @@ export function StaffDetailsFormScreen() {
             gratuity_applicable: staff.gratuity_applicable ?? true,
             assigned_location_id: staff.assigned_location_id?.toString() || '',
             dependents: dependentsData,
-          });
+          };
+          console.log('[StaffDetailsForm] Setting prefilled form data:', prefilledFormData);
+          setFormData(prefilledFormData);
         }
       }
     } catch (error: any) {
@@ -509,6 +513,7 @@ export function StaffDetailsFormScreen() {
         highest_qualification: formData.highest_qualification,
         university_school: formData.university_school,
         year_of_graduation: formData.year_of_graduation,
+        course_of_study: formData.course_of_study || '',
         professional_certifications: formData.professional_certifications,
         languages_known: formData.languages_known,
         experience_years: formData.experience_years,

@@ -190,7 +190,7 @@ export function ProfileScreen() {
           <div className="flex items-start gap-4">
             <div className="relative">
               <img
-                src={user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
+                src={staffDetails?.profile_picture || user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
                 alt={user?.fullName}
                 className="w-20 h-20 rounded-full border-4 border-white/20"
               />

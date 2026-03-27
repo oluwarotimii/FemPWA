@@ -168,16 +168,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Store token with persistence based on rememberMe choice
       if (rememberMe) {
+        // Persistent login (3 months)
         localStorage.setItem('authToken', token);
         localStorage.setItem('userId', userData.id.toString());
         localStorage.setItem('rememberMe', 'true');
+        // Set token expiry to 30 days (access token expires before refresh token)
         const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
         localStorage.setItem('tokenExpiry', expiryTime.toString());
+        console.log('Persistent login enabled - expires in 30 days');
       } else {
+        // Session-only login (expires when browser closes)
         sessionStorage.setItem('authToken', token);
         sessionStorage.setItem('userId', userData.id.toString());
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('userId', userData.id.toString());
+        console.log('Session login enabled');
+      }
+      
+      // Always store user data in localStorage for quick access
+      if (userData) {
+        localStorage.setItem('userData', JSON.stringify(userData));
+      }
         localStorage.removeItem('rememberMe');
         localStorage.removeItem('tokenExpiry');
       }
@@ -230,10 +239,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('permissions');
       localStorage.removeItem('rememberMe');
       localStorage.removeItem('tokenExpiry');
+      localStorage.removeItem('userData');
       sessionStorage.removeItem('authToken');
       sessionStorage.removeItem('userId');
     }
   };
+
+  // Auto-refresh token before it expires (for persistent logins)
+  useEffect(() => {
+    const refreshInterval = 24 * 60 * 60 * 1000; // Check every 24 hours
+    const refreshTimer = setInterval(async () => {
+      const rememberMe = localStorage.getItem('rememberMe');
+      if (rememberMe === 'true') {
+        try {
+          console.log('Auto-refreshing token for persistent login...');
+          // The backend will automatically refresh via the refresh token cookie
+          await initializeAuth();
+        } catch (error) {
+          console.error('Auto-refresh failed:', error);
+        }
+      }
+    }, refreshInterval);
+
+    return () => clearInterval(refreshTimer);
+  }, []);
 
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
