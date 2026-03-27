@@ -114,8 +114,23 @@ export function ProfileScreen() {
       if (response.success && response.data?.branch) {
         setBranch(response.data.branch);
       }
-    } catch (error) {
-      console.error('Failed to fetch branch details:', error);
+    } catch (error: any) {
+      // If 403 (forbidden), try to get all branches and find the user's branch
+      if (error.response?.status === 403) {
+        try {
+          const allBranchesResponse = await branchesApi.getAllBranches();
+          if (allBranchesResponse.success && allBranchesResponse.data?.branches) {
+            const userBranch = allBranchesResponse.data.branches.find(b => b.id === branchId);
+            if (userBranch) {
+              setBranch(userBranch);
+            }
+          }
+        } catch (fallbackError) {
+          console.warn('Failed to fetch branch details (fallback also failed):', fallbackError);
+        }
+      } else {
+        console.error('Failed to fetch branch details:', error);
+      }
     }
   };
 

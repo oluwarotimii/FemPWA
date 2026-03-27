@@ -333,7 +333,7 @@ export function AttendanceHistoryScreen() {
       }
     };
 
-    fetchAttendance();
+    fetchAttendanceAndWorkingDays();
   }, [currentMonth]);
 
   const handlePrevMonth = () => {

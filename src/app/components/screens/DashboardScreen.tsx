@@ -136,12 +136,28 @@ export function DashboardScreen() {
   const fetchBranchInfo = async () => {
     if (!user?.branchId) return;
     try {
+      // Try to get branch by ID first
       const response = await branchesApi.getBranchById(user.branchId);
       if (response.success && response.data?.branch) {
         setBranchInfo(response.data.branch);
       }
-    } catch (error) {
-      console.error('Failed to fetch branch info:', error);
+    } catch (error: any) {
+      // If 403 (forbidden), try to get all branches and find the user's branch
+      if (error.response?.status === 403) {
+        try {
+          const allBranchesResponse = await branchesApi.getAllBranches();
+          if (allBranchesResponse.success && allBranchesResponse.data?.branches) {
+            const userBranch = allBranchesResponse.data.branches.find(b => b.id === user.branchId);
+            if (userBranch) {
+              setBranchInfo(userBranch);
+            }
+          }
+        } catch (fallbackError) {
+          console.error('Failed to fetch branch info (fallback also failed):', fallbackError);
+        }
+      } else {
+        console.error('Failed to fetch branch info:', error);
+      }
     }
   };
 

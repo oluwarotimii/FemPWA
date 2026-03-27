@@ -48,7 +48,7 @@ interface StaffDetails {
   emergency_contact_relationship: string;
   bank_name: string;
   bank_account_number: string;
-  bank_ifsc_code: string;
+  // bank_ifsc_code: string;
   tax_identification_number: string;
   highest_qualification: string;
   university_school: string;
@@ -133,7 +133,7 @@ export function StaffDetailsFormScreen() {
     emergency_contact_relationship: '',
     bank_name: '',
     bank_account_number: '',
-    bank_ifsc_code: '',
+    // bank_ifsc_code: '',
     tax_identification_number: '',
     highest_qualification: '',
     university_school: '',
@@ -173,7 +173,7 @@ export function StaffDetailsFormScreen() {
       formData.emergency_contact_phone,
       formData.bank_name,
       formData.bank_account_number,
-      formData.bank_ifsc_code,
+      // formData.bank_ifsc_code,
       formData.highest_qualification,
       formData.primary_skills,
       formData.weekly_working_hours,
@@ -197,10 +197,10 @@ export function StaffDetailsFormScreen() {
 
   const fetchDepartmentsAndBranches = async () => {
     try {
-      const [deptResponse, branchResponse, locationResponse] = await Promise.all([
+      // Fetch departments and branches in parallel
+      const [deptResponse, branchResponse] = await Promise.all([
         apiClient.get('/staff-invitation/departments'),
-        apiClient.get('/staff-invitation/branches'),
-        apiClient.get('/locations')
+        apiClient.get('/staff-invitation/branches')
       ]);
 
       if (deptResponse.data?.success) {
@@ -209,11 +209,20 @@ export function StaffDetailsFormScreen() {
       if (branchResponse.data?.success) {
         setBranches(branchResponse.data.data.branches || []);
       }
-      if (locationResponse.data?.success) {
-        setLocations(locationResponse.data.data.locations || []);
+      
+      // Locations endpoint is optional - fetch separately to avoid blocking
+      try {
+        const locationResponse = await apiClient.get('/locations');
+        if (locationResponse.data?.success) {
+          setLocations(locationResponse.data.data.locations || []);
+        }
+      } catch (locationError) {
+        // Locations endpoint may not exist - use empty array
+        console.warn('Locations endpoint not available, using empty list');
+        setLocations([]);
       }
     } catch (error) {
-      console.error('Error fetching departments/branches/locations:', error);
+      console.error('Error fetching departments/branches:', error);
       setDepartments([]);
       setBranches([]);
       setLocations([]);
@@ -231,7 +240,16 @@ export function StaffDetailsFormScreen() {
       }
 
       // Get staff data which includes invitation info
+      // Note: New users may not have a staff record yet - that's OK
       const response = await apiClient.get(`/staff/${userId}`);
+      
+      if (response.status === 404) {
+        // No staff record yet - this is normal for new users
+        console.log('No staff record found, user will complete profile');
+        setLoading(false);
+        return;
+      }
+      
       if (response.data?.success && response.data?.data?.staff) {
         const staff = response.data.data.staff;
         setExistingStaffData(staff);
@@ -298,7 +316,7 @@ export function StaffDetailsFormScreen() {
             emergency_contact_relationship: staff.emergency_contact_relationship || '',
             bank_name: staff.bank_name || '',
             bank_account_number: staff.bank_account_number || '',
-            bank_ifsc_code: staff.bank_ifsc_code || '',
+            // bank_ifsc_code: staff.bank_ifsc_code || '',
             tax_identification_number: staff.tax_identification_number || '',
             highest_qualification: staff.highest_qualification || '',
             university_school: staff.university_school || '',
@@ -324,9 +342,13 @@ export function StaffDetailsFormScreen() {
         }
       }
     } catch (error: any) {
-      console.error('Error checking staff data:', error);
-      // If there's an error, still allow the user to fill the form
-      toast.error('Unable to load existing data. Please fill in your details.');
+      // Handle 404 gracefully - no staff record yet
+      if (error.response?.status === 404) {
+        console.log('No staff record found, user will complete profile');
+      } else {
+        console.error('Error checking staff data:', error);
+        toast.error('Unable to load existing data. Please fill in your details.');
+      }
     } finally {
       setLoading(false);
     }
@@ -422,7 +444,7 @@ export function StaffDetailsFormScreen() {
         }
         break;
       case 3: // Bank Information
-        if (!formData.bank_name || !formData.bank_account_number || !formData.bank_ifsc_code) {
+        if (!formData.bank_name || !formData.bank_account_number) {
           toast.error('Please fill in all required bank information fields marked with *');
           return false;
         }
@@ -433,15 +455,9 @@ export function StaffDetailsFormScreen() {
           return false;
         }
         break;
-      case 5: // Employment Details
-        if (!formData.weekly_working_hours) {
-          toast.error('Please fill in weekly working hours');
-          return false;
-        }
+      case 5: // Dependents - optional, no validation
         break;
-      case 6: // Dependents - optional, no validation
-        break;
-      case 7: // Review - no validation needed
+      case 6: // Review - no validation needed
         break;
     }
     return true;
@@ -471,10 +487,8 @@ export function StaffDetailsFormScreen() {
       const payload = {
         employee_id: formData.employee_id || `EMP${userId}`,
         designation: formData.designation,
-        // Don't send department_id and branch_id - they're set by HR
+        // Don't send department_id, branch_id, employment_type, work_mode - they're set by HR
         joining_date: formData.joining_date,
-        employment_type: formData.employment_type,
-        work_mode: formData.work_mode,
         work_email: formData.work_email,
         personal_email: formData.personal_email,
         phone_number: formData.phone_number,
@@ -490,7 +504,7 @@ export function StaffDetailsFormScreen() {
         emergency_contact_relationship: formData.emergency_contact_relationship,
         bank_name: formData.bank_name,
         bank_account_number: formData.bank_account_number,
-        bank_ifsc_code: formData.bank_ifsc_code,
+        // bank_ifsc_code: formData.bank_ifsc_code,
         tax_identification_number: formData.tax_identification_number,
         highest_qualification: formData.highest_qualification,
         university_school: formData.university_school,
@@ -513,6 +527,17 @@ export function StaffDetailsFormScreen() {
         assigned_location_id: formData.assigned_location_id ? parseInt(formData.assigned_location_id) : null,
         dependents: formData.dependents.length > 0 ? JSON.stringify(formData.dependents) : null,
       };
+
+      // userId already declared at start of handleSubmit
+      console.log('========================================');
+      console.log('[Frontend] Submitting staff details');
+      console.log('[Frontend] userId from localStorage:', userId);
+      console.log('[Frontend] userId type:', typeof userId);
+      console.log('[Frontend] userId as number:', Number(userId));
+      console.log('[Frontend] Request URL:', `/staff/${userId}`);
+      console.log('[Frontend] Payload keys:', Object.keys(payload));
+      console.log('[Frontend] Payload:', JSON.stringify(payload, null, 2));
+      console.log('========================================');
 
       const response = await apiClient.put(`/staff/${userId}`, payload);
 
@@ -1339,7 +1364,7 @@ export function StaffDetailsFormScreen() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div><span className="text-gray-500">Bank:</span> {formData.bank_name || '-'}</div>
               <div><span className="text-gray-500">Account:</span> {formData.bank_account_number ? '****' + formData.bank_account_number.slice(-4) : '-'}</div>
-              <div><span className="text-gray-500">IFSC:</span> {formData.bank_ifsc_code || '-'}</div>
+              {/* <div><span className="text-gray-500">IFSC:</span> {formData.bank_ifsc_code || '-'}</div> */}
               <div><span className="text-gray-500">PAN/TIN:</span> {formData.tax_identification_number || '-'}</div>
             </div>
           </CardContent>
