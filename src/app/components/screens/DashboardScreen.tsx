@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, Briefcase, MapPin, Navigation, Info, LocateFixed } from 'lucide-react';
+import { Clock, Calendar, Briefcase, MapPin, Navigation, Info, LocateFixed, Loader2, CheckCircle, XCircle, Timer } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
@@ -8,14 +8,14 @@ import { attendanceApi, branchesApi } from '@/app/services/api';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
-import { calculateDistance } from '@/app/utils/geofencing'; // I'll create this util
+import { calculateDistance } from '@/app/utils/geofencing';
 
 export function DashboardScreen() {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Track today's attendance status
   const [todayRecord, setTodayRecord] = useState<any | null>(null);
 
@@ -26,6 +26,11 @@ export function DashboardScreen() {
   const [isWithinRange, setIsWithinRange] = useState<boolean | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+
+  // Loading modal states
+  const [showLoadingModal, setShowLoadingModal] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<'getting-location' | 'submitting' | 'success' | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
 
   // Derived states
   const hasCheckedInToday = todayRecord?.check_in_time !== null && todayRecord?.check_in_time !== undefined;
@@ -239,8 +244,18 @@ export function DashboardScreen() {
 
   const handleClockAction = async () => {
     try {
-      setLoading(true);
+      setShowLoadingModal(true);
+      setLoadingStage('getting-location');
+      setLoadingMessage('Getting your location...');
+      
       const coords = await getCurrentLocation();
+      
+      if (!coords) {
+        throw new Error('Unable to get your location. Please enable GPS and try again.');
+      }
+
+      setLoadingStage('submitting');
+      setLoadingMessage('Submitting attendance...');
 
       if (isClocked) {
         // Check out
@@ -252,11 +267,20 @@ export function DashboardScreen() {
             : null,
           location_address: coords ? 'Mobile GPS' : 'Office (Manual)'
         };
+        
         const response = await attendanceApi.checkOut(checkOutData);
 
+        setLoadingStage('success');
+        setLoadingMessage('Successfully clocked out!');
         toast.success(response?.message || 'Successfully clocked out', {
           description: `Successfully clocked out at ${new Date().toLocaleTimeString()}`
         });
+        
+        setTimeout(() => {
+          setShowLoadingModal(false);
+          setLoadingStage(null);
+          setLoading(false);
+        }, 1000);
       } else {
         // Check in
         const checkInData = {
@@ -268,8 +292,11 @@ export function DashboardScreen() {
           location_address: coords ? 'Mobile GPS' : 'Office (Manual)',
           status: 'present'
         };
+        
         const response = await attendanceApi.checkIn(checkInData);
 
+        setLoadingStage('success');
+        setLoadingMessage('Successfully clocked in!');
         toast.success(response?.message || 'Successfully clocked in', {
           description: `Welcome back, ${user?.fullName}!`
         });
@@ -279,25 +306,103 @@ export function DashboardScreen() {
           check_in_time: new Date().toTimeString().substring(0, 8),
           check_out_time: null,
         });
-        setLoading(false);
+        
+        setTimeout(() => {
+          setShowLoadingModal(false);
+          setLoadingStage(null);
+          setLoading(false);
+        }, 1000);
         return; // Don't refresh, we already updated state
       }
 
       // Refresh attendance records after clock out
       await refreshAttendance();
     } catch (error: any) {
+      setShowLoadingModal(false);
+      setLoadingStage(null);
+      
+      // Specific error handling based on backend response codes
       if (error.response?.status === 403) {
-        toast.error('Attendance Not Marked', {
-          description: error.response?.data?.message || 'You must be within the allowed radius of the branch. Please move closer and try again.',
+        const msg = error.response?.data?.message || '';
+        
+        if (msg.includes('locked') || msg.includes('Locked')) {
+          toast.error('Attendance Locked', {
+            description: 'Attendance for this date has been locked by your branch. Please contact HR.',
+            duration: 6000
+          });
+        } else if (msg.includes('Location verification failed') || msg.includes('location')) {
+          toast.error('Location Verification Failed', {
+            description: 'You are not within the allowed check-in location. Please move closer to your assigned location and try again.',
+            duration: 7000
+          });
+        } else if (msg.includes('not within allowed location')) {
+          toast.error('Outside Allowed Area', {
+            description: 'You must be within your assigned location(s) to check in. Contact HR if you believe this is an error.',
+            duration: 7000
+          });
+        } else {
+          toast.error('Access Denied', {
+            description: msg || 'You do not have permission to perform this action.',
+            duration: 5000
+          });
+        }
+      } else if (error.response?.status === 409) {
+        toast.error('Already Checked In', {
+          description: 'You have already checked in today. Multiple check-ins are not allowed.',
           duration: 5000
         });
+      } else if (error.response?.status === 400) {
+        const msg = error.response?.data?.message || '';
+        if (msg.includes('not required')) {
+          toast.error('Check-in Disabled', {
+            description: 'Check-in is not enabled for your branch. Please contact HR for assistance.',
+            duration: 6000
+          });
+        } else if (msg.includes('required')) {
+          toast.error('Missing Information', {
+            description: msg || 'Please provide all required information.',
+            duration: 5000
+          });
+        } else {
+          toast.error('Invalid Request', {
+            description: msg || 'Please try again.',
+            duration: 5000
+          });
+        }
+      } else if (error.response?.status === 404) {
+        toast.error('Record Not Found', {
+          description: 'No attendance record found. Please check in first before checking out.',
+          duration: 5000
+        });
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        toast.error('Authentication Error', {
+          description: 'Your session may have expired. Please log in again.',
+          duration: 5000
+        });
+      } else if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || !error.response) {
+        toast.error('Network Error', {
+          description: 'Unable to connect to server. Please check your internet connection and try again.',
+          duration: 6000
+        });
+      } else if (error.message?.includes('location') || error.message?.includes('GPS')) {
+        toast.error('Location Error', {
+          description: error.message || 'Unable to get your location. Please ensure GPS is enabled.',
+          duration: 6000
+        });
       } else {
-        toast.error('Failed to update attendance', {
-          description: error.response?.data?.message || 'Please try again'
+        toast.error('Check-in Failed', {
+          description: error.response?.data?.message || error.message || 'An unexpected error occurred. Please try again.',
+          duration: 5000
         });
       }
     } finally {
-      setLoading(false);
+      if (loadingStage !== 'success') {
+        setShowLoadingModal(false);
+        setLoadingStage(null);
+        setLoading(false);
+      }
+    }
+  };
     }
   };
 
@@ -453,6 +558,73 @@ export function DashboardScreen() {
         </CardContent>
       </Card>
 
+      {/* Shift Information Card */}
+      {todayRecord && (
+        <Card className="shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Timer className="w-4 h-4" />
+                Today's Schedule
+              </h3>
+              {todayRecord.is_late && hasCheckedInToday && (
+                <Badge className="bg-amber-100 text-amber-700">
+                  <Clock className="w-3 h-3 mr-1" />
+                  Late
+                </Badge>
+              )}
+            </div>
+            
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Scheduled Start</span>
+                <span className="font-medium text-gray-900">
+                  {todayRecord?.scheduled_start_time || '09:00'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Scheduled End</span>
+                <span className="font-medium text-gray-900">
+                  {todayRecord?.scheduled_end_time || '17:00'}
+                </span>
+              </div>
+              {hasCheckedInToday && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Actual Check-in</span>
+                    <span className="font-medium text-green-600">
+                      {todayRecord.check_in_time || '--:--'}
+                    </span>
+                  </div>
+                  {todayRecord.is_late && todayRecord.late_by && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                      <Clock className="w-3 h-3" />
+                      <span>Late by {todayRecord.late_by} minutes</span>
+                    </div>
+                  )}
+                </>
+              )}
+              {hasCheckedOutToday && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Actual Check-out</span>
+                    <span className="font-medium text-blue-600">
+                      {todayRecord.check_out_time || '--:--'}
+                    </span>
+                  </div>
+                  {todayRecord.is_auto_checkout && (
+                    <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 p-2 rounded">
+                      <Timer className="w-3 h-3" />
+                      <span>Automatic checkout</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Quick Summary */}
       {/* <div className="grid grid-cols-3 gap-3">
         <Card className="shadow-md">
@@ -547,6 +719,77 @@ export function DashboardScreen() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Loading Modal */}
+      <AnimatePresence>
+        {showLoadingModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-2xl"
+            >
+              <div className="flex flex-col items-center gap-4">
+                {loadingStage === 'getting-location' && (
+                  <>
+                    <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-gray-900">Getting Your Location</p>
+                      <p className="text-sm text-gray-500 mt-1">{loadingMessage}</p>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                      <motion.div
+                        initial={{ width: '0%' }}
+                        animate={{ width: '40%' }}
+                        transition={{ duration: 2 }}
+                        className="bg-blue-600 h-1.5 rounded-full"
+                      />
+                    </div>
+                  </>
+                )}
+                {loadingStage === 'submitting' && (
+                  <>
+                    <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-gray-900">Submitting Attendance</p>
+                      <p className="text-sm text-gray-500 mt-1">{loadingMessage}</p>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                      <motion.div
+                        initial={{ width: '40%' }}
+                        animate={{ width: '80%' }}
+                        transition={{ duration: 2 }}
+                        className="bg-blue-600 h-1.5 rounded-full"
+                      />
+                    </div>
+                  </>
+                )}
+                {loadingStage === 'success' && (
+                  <>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 200 }}
+                    >
+                      <CheckCircle className="w-10 h-10 text-green-600" />
+                    </motion.div>
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-green-600">Success!</p>
+                      <p className="text-sm text-gray-500 mt-1">{loadingMessage}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
