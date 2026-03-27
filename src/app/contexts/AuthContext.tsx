@@ -187,9 +187,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userData) {
         localStorage.setItem('userData', JSON.stringify(userData));
       }
-        localStorage.removeItem('rememberMe');
-        localStorage.removeItem('tokenExpiry');
-      }
 
       // Store permissions if provided
       if (userPermissions) {
