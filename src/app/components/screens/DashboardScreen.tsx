@@ -403,8 +403,6 @@ export function DashboardScreen() {
       }
     }
   };
-    }
-  };
 
   const greeting = () => {
     const hour = new Date().getHours();

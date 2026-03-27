@@ -197,6 +197,8 @@ export function AttendanceHistoryScreen() {
   const [calendarRecords, setCalendarRecords] = useState<CalendarDayRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<{ date: Date; record?: CalendarDayRecord } | null>(null);
+  const [branchWorkingDays, setBranchWorkingDays] = useState<Record<string, boolean>>({});
+  const [userBranchId, setUserBranchId] = useState<number | null>(null);
 
   const monthNames = [
     'January',
@@ -214,8 +216,35 @@ export function AttendanceHistoryScreen() {
   ];
 
   useEffect(() => {
-    const fetchAttendance = async () => {
+    const fetchAttendanceAndWorkingDays = async () => {
       try {
+        // Fetch user's branch info first
+        const userResponse = await fetch('/api/users/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          }
+        });
+        const userData = await userResponse.json();
+        if (userData.data?.user?.branch_id) {
+          setUserBranchId(userData.data.user.branch_id);
+          
+          // Fetch branch working days
+          const workingDaysResponse = await fetch(`/api/branch-working-days?branchId=${userData.data.user.branch_id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+          });
+          const workingDaysData = await workingDaysResponse.json();
+          
+          if (workingDaysData.data?.workingDays) {
+            const workingDaysMap: Record<string, boolean> = {};
+            workingDaysData.data.workingDays.forEach((day: any) => {
+              workingDaysMap[day.day_of_week] = day.is_working_day;
+            });
+            setBranchWorkingDays(workingDaysMap);
+          }
+        }
+        
         const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
         const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).toISOString().split('T')[0];
 
@@ -254,6 +283,8 @@ export function AttendanceHistoryScreen() {
             day: '2-digit'
           });
           const dayOfWeek = getDay(day);
+          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const dayName = dayNames[dayOfWeek];
           const apiRecord = recordMap.get(localDateStr);
 
           if (apiRecord) {
@@ -266,8 +297,10 @@ export function AttendanceHistoryScreen() {
             };
           }
 
-          // No record - check if weekend
-          if (dayOfWeek === 0 || dayOfWeek === 6) {
+          // No record - check branch working days configuration
+          const isWorkingDay = branchWorkingDays[dayName] !== false; // Default to true if not configured
+          
+          if (!isWorkingDay) {
             return {
               date: dateStr,
               status: "weekend",

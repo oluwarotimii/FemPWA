@@ -175,6 +175,8 @@ export default function AttendanceTracker() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [branchWorkingDays, setBranchWorkingDays] = useState<Record<string, boolean>>({});
+  const [userBranchId, setUserBranchId] = useState<number | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -185,6 +187,32 @@ export default function AttendanceTracker() {
       try {
         setLoading(true);
         setError(null);
+
+        // Fetch user's branch and working days
+        const userResponse = await fetch('/api/users/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          }
+        });
+        const userData = await userResponse.json();
+        if (userData.data?.user?.branch_id) {
+          setUserBranchId(userData.data.user.branch_id);
+          
+          const workingDaysResponse = await fetch(`/api/branch-working-days?branchId=${userData.data.user.branch_id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+          });
+          const workingDaysData = await workingDaysResponse.json();
+          
+          if (workingDaysData.data?.workingDays) {
+            const workingDaysMap: Record<string, boolean> = {};
+            workingDaysData.data.workingDays.forEach((day: any) => {
+              workingDaysMap[day.day_of_week] = day.is_working_day;
+            });
+            setBranchWorkingDays(workingDaysMap);
+          }
+        }
 
         // Format dates for API request
         const startDate = format(startOfMonth(currentDate), 'yyyy-MM-dd');
