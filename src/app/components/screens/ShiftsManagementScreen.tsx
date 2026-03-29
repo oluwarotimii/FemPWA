@@ -164,9 +164,20 @@ export function ShiftsManagementScreen() {
                         <span className="capitalize">{assignment.recurrence_pattern}</span>
                         {assignment.recurrence_days && (
                           <div className="flex gap-1">
-                            {JSON.parse(assignment.recurrence_days).slice(0, 3).map((day: string) => (
-                              <span key={day} className="px-2 py-0.5 bg-gray-100 rounded text-gray-700">{day.substring(0, 3)}</span>
-                            ))}
+                            {(() => {
+                              try {
+                                const days = typeof assignment.recurrence_days === 'string' 
+                                  ? JSON.parse(assignment.recurrence_days) 
+                                  : assignment.recurrence_days;
+                                return Array.isArray(days) && days.length > 0
+                                  ? days.slice(0, 3).map((day: string) => (
+                                      <span key={day} className="px-2 py-0.5 bg-gray-100 rounded text-gray-700">{day.substring(0, 3)}</span>
+                                    ))
+                                  : null;
+                              } catch {
+                                return null;
+                              }
+                            })()}
                           </div>
                         )}
                       </div>

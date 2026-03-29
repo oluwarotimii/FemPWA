@@ -24,6 +24,12 @@ export interface EmployeeShiftAssignment {
   user_name?: string;
   shift_template_id: number;
   shift_template_name?: string;
+  shift_template?: {
+    name: string;
+    start_time: string;
+    end_time: string;
+    break_duration_minutes: number;
+  };
   custom_start_time?: string;
   custom_end_time?: string;
   custom_break_duration_minutes?: number;
@@ -34,6 +40,8 @@ export interface EmployeeShiftAssignment {
   notes?: string;
   created_at: string;
   updated_at: string;
+  recurrence_pattern?: 'daily' | 'weekly' | 'monthly' | 'none';
+  recurrence_days?: string | string[];
 }
 
 export interface ShiftException {
