@@ -4,7 +4,7 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
-import { attendanceApi, branchesApi } from '@/app/services/api';
+import { attendanceApi, branchesApi, shiftApi } from '@/app/services/api';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
@@ -18,6 +18,8 @@ export function DashboardScreen() {
 
   // Track today's attendance status
   const [todayRecord, setTodayRecord] = useState<any | null>(null);
+  const [todaySchedule, setTodaySchedule] = useState<any | null>(null);
+  const [myExceptions, setMyExceptions] = useState<any[]>([]);
 
   // Geofencing states
   const [branchInfo, setBranchInfo] = useState<any>(null);
@@ -56,9 +58,14 @@ export function DashboardScreen() {
       }); // Returns YYYY-MM-DD in local timezone
 
       // Fetch records for the entire month to find today's record
-      const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-      const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
-
+      // Use local date strings to avoid UTC-shifting during split('T')[0]
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      const startDate = firstDay.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const endDate = lastDay.toLocaleDateString('en-CA');     // YYYY-MM-DD
+      
       console.log('=== Refreshing Attendance ===');
       console.log('Today (local):', today);
       console.log('Date range:', startDate, 'to', endDate);
@@ -78,52 +85,54 @@ export function DashboardScreen() {
       setAttendanceRecords(sortedRecords);
 
       console.log('Total records fetched:', records.length);
-      console.log('All record dates:', records.map((r: any) => ({
-        id: r.id,
-        date: r.date,
-        dateOnly: r.date.split('T')[0],
-        localDate: new Date(r.date).toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-        check_in_time: r.check_in_time,
-        check_out_time: r.check_out_time,
-        status: r.status
-      })));
-
-      // Find today's record - compare using ISO date string for consistency
+      
+      // Find today's record - compare using local date strings
       const todaysRecord = records.find((r: any) => {
-        // Get the date portion from the API response (handles both ISO strings and date-only strings)
-        let recordDate: string;
-        if (r.date.includes('T')) {
-          // ISO format: convert to local date
-          recordDate = new Date(r.date).toLocaleDateString('en-CA', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          });
-        } else {
-          // Already a date-only string
-          recordDate = r.date;
-        }
-        const matches = recordDate === today;
-        if (matches) {
-          console.log('✓ Found today\'s record:', r);
-        }
-        return matches;
+        const recordDate = r.date.includes('T') 
+          ? new Date(r.date).toLocaleDateString('en-CA') 
+          : r.date;
+        return recordDate === today;
       });
 
       if (!todaysRecord) {
         console.log('✗ No record found for today');
+      } else {
+        console.log('✓ Found today\'s record:', todaysRecord);
       }
-      console.log('Today\'s record:', todaysRecord);
-      console.log('check_in_time:', todaysRecord?.check_in_time);
-      console.log('check_out_time:', todaysRecord?.check_out_time);
-      console.log('hasCheckedInToday:', todaysRecord?.check_in_time !== null && todaysRecord?.check_in_time !== undefined);
-      console.log('hasCheckedOutToday:', todaysRecord?.check_out_time !== null && todaysRecord?.check_out_time !== undefined);
-
+      
       setTodayRecord(todaysRecord || null);
+
+      // Fetch today's schedule to check for working day/holiday/hours
+      try {
+        const scheduleRes = await shiftApi.getMyTodayShift();
+        if (scheduleRes.success) {
+          setTodaySchedule(scheduleRes.data.schedule);
+        }
+      } catch (err) {
+        console.error('Failed to fetch today schedule:', err);
+      }
+
+      // Fetch upcoming exceptions
+      try {
+        const exceptionsRes = await shiftApi.getMyShiftExceptions();
+        if (exceptionsRes.success) {
+          setMyExceptions(exceptionsRes.data.exceptions || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch exceptions:', err);
+      }
     } catch (error: any) {
       console.error('Failed to fetch attendance records:', error);
-      toast.error('Failed to load attendance data', {
-        description: 'Please check your connection and refresh the page'
+      
+      // Better error reporting for Network Errors
+      const isNetworkError = error.message === 'Network Error' || !error.response;
+      const errorTitle = isNetworkError ? 'Connection Error' : 'Failed to load attendance data';
+      const errorDesc = isNetworkError 
+        ? 'Could not connect to the server. Please check your internet connection.' 
+        : 'Please refresh the page or try again later.';
+
+      toast.error(errorTitle, {
+        description: errorDesc
       });
       setAttendanceRecords([]);
       setTodayRecord(null);
@@ -135,11 +144,24 @@ export function DashboardScreen() {
   // Fetch branch info
   const fetchBranchInfo = async () => {
     if (!user?.branchId) return;
+    
+    // Check local cache first for speed
+    const cacheKey = `branch_info_${user.branchId}`;
+    const cachedBranch = localStorage.getItem(cacheKey);
+    if (cachedBranch) {
+      try {
+        setBranchInfo(JSON.parse(cachedBranch));
+      } catch (e) {
+        console.error('Error parsing cached branch:', e);
+      }
+    }
+
     try {
-      // Try to get branch by ID first
       const response = await branchesApi.getBranchById(user.branchId);
       if (response.success && response.data?.branch) {
         setBranchInfo(response.data.branch);
+        // Update cache
+        localStorage.setItem(cacheKey, JSON.stringify(response.data.branch));
       }
     } catch (error: any) {
       // If 403 (forbidden), try to get all branches and find the user's branch
@@ -147,9 +169,10 @@ export function DashboardScreen() {
         try {
           const allBranchesResponse = await branchesApi.getAllBranches();
           if (allBranchesResponse.success && allBranchesResponse.data?.branches) {
-            const userBranch = allBranchesResponse.data.branches.find(b => b.id === user.branchId);
+            const userBranch = allBranchesResponse.data.branches.find((b: any) => b.id === user.branchId);
             if (userBranch) {
               setBranchInfo(userBranch);
+              localStorage.setItem(cacheKey, JSON.stringify(userBranch));
             }
           }
         } catch (fallbackError) {
@@ -184,12 +207,23 @@ export function DashboardScreen() {
         let errorMsg = 'Check GPS permissions';
         if (error.code === 1) errorMsg = 'GPS Permission Denied';
         else if (error.code === 2) errorMsg = 'GPS Signal Lost';
-        else if (error.code === 3) errorMsg = 'GPS Timeout';
+        else if (error.code === 3) {
+          errorMsg = 'GPS Timeout (Standard Mode)';
+          // If high accuracy times out, try standard accuracy
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+              setLocationError(null);
+            },
+            null,
+            { enableHighAccuracy: false, timeout: 5000 }
+          );
+        }
         
         setLocationError(errorMsg);
         setIsLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
     );
 
     fetchBranchInfo();
@@ -236,12 +270,20 @@ export function DashboardScreen() {
 
   const getCurrentLocation = (): Promise<{ latitude: number; longitude: number } | null> => {
     return new Promise((resolve) => {
+      // 1. If we have a fresh location from the watch effect (< 1 minute old), use it immediately!
+      if (currentLocation && !locationError) {
+        console.log('Using fresh watched location for instant check-in');
+        resolve(currentLocation);
+        return;
+      }
+
       if (!navigator.geolocation) {
         console.warn('Geolocation is not supported by this browser.');
         resolve(null);
         return;
       }
 
+      console.log('Fetching fresh location for check-in...');
       navigator.geolocation.getCurrentPosition(
         (position) => {
           resolve({
@@ -251,9 +293,19 @@ export function DashboardScreen() {
         },
         (error) => {
           console.error('Geolocation error:', error);
-          resolve(null);
+          // 2. Fallback to standard accuracy if high accuracy fails/timeouts
+          if (error.code === 3 || error.code === 2) {
+            console.log('Falling back to standard accuracy...');
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+              () => resolve(null),
+              { enableHighAccuracy: false, timeout: 5000 }
+            );
+          } else {
+            resolve(null);
+          }
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     });
   };
@@ -548,13 +600,13 @@ export function DashboardScreen() {
               <Button
                 size="lg"
                 className={`w-full h-16 text-lg font-semibold rounded-2xl ${
-                  hasCheckedInToday
+                  hasCheckedInToday || todaySchedule?.is_working_day === false
                     ? 'bg-gray-400 cursor-not-allowed'
                     : isClocked
                     ? 'bg-red-500 hover:bg-red-600'
                     : 'bg-green-500 hover:bg-green-600'
                 }`}
-                disabled={loading || hasCheckedInToday}
+                disabled={loading || hasCheckedInToday || todaySchedule?.is_working_day === false}
                 onClick={hasCheckedInToday ? undefined : handleClockAction}
               >
                 {loading
@@ -563,6 +615,8 @@ export function DashboardScreen() {
                   ? hasCheckedOutToday
                     ? '✓ Checked Out'
                     : '✓ Checked In'
+                  : todaySchedule?.is_working_day === false
+                  ? todaySchedule?.schedule_type === 'holiday' ? 'Holiday' : 'Non-Working Day'
                   : isClocked
                   ? 'Clock Out'
                   : 'Clock In'}
@@ -573,15 +627,21 @@ export function DashboardScreen() {
       </Card>
 
       {/* Shift Information Card */}
-      {todayRecord && (
+      {(todayRecord || todaySchedule) && (
         <Card className="shadow-md">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <Timer className="w-4 h-4" />
                 Today's Schedule
+                {todaySchedule?.schedule_type === 'exception' && (
+                  <Badge className="bg-blue-100 text-blue-700 ml-2">Exception</Badge>
+                )}
+                {todaySchedule?.schedule_type === 'holiday' && (
+                  <Badge className="bg-purple-100 text-purple-700 ml-2">Holiday</Badge>
+                )}
               </h3>
-              {todayRecord.is_late && hasCheckedInToday && (
+              {todayRecord?.is_late && hasCheckedInToday && (
                 <Badge className="bg-amber-100 text-amber-700">
                   <Clock className="w-3 h-3 mr-1" />
                   Late
@@ -593,15 +653,20 @@ export function DashboardScreen() {
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Scheduled Start</span>
                 <span className="font-medium text-gray-900">
-                  {todayRecord?.scheduled_start_time || '09:00'}
+                  {todayRecord?.scheduled_start_time || todaySchedule?.start_time || '09:00'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Scheduled End</span>
                 <span className="font-medium text-gray-900">
-                  {todayRecord?.scheduled_end_time || '17:00'}
+                  {todayRecord?.scheduled_end_time || todaySchedule?.end_time || '17:00'}
                 </span>
               </div>
+              {todaySchedule?.schedule_note && (
+                <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600 italic">
+                  Note: {todaySchedule.schedule_note}
+                </div>
+              )}
               {hasCheckedInToday && (
                 <>
                   <div className="flex justify-between items-center">
@@ -733,6 +798,51 @@ export function DashboardScreen() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Shift Exceptions Card */}
+      {myExceptions.length > 0 && (
+        <Card className="shadow-md border-purple-100">
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-purple-600" />
+              Special Shift Exceptions
+            </h3>
+            <div className="space-y-3">
+              {myExceptions.slice(0, 3).map((exception) => (
+                <div key={exception.id} className="bg-purple-50 rounded-lg p-3 text-sm">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-semibold text-purple-900">
+                      {new Date(exception.exception_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </span>
+                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-[10px]">
+                      {exception.exception_type?.replace(/_/g, ' ') || 'Exception'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-purple-700">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      {exception.new_start_time?.substring(0, 5) || '--:--'} - {exception.new_end_time?.substring(0, 5) || '--:--'}
+                    </span>
+                  </div>
+                  {exception.reason && (
+                    <p className="text-xs text-purple-600 mt-1 italic">
+                      {exception.reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {myExceptions.length > 3 && (
+                <p className="text-center text-xs text-gray-500 italic pt-1">
+                  And {myExceptions.length - 3} more... Check Shifts tab for details.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Loading Modal */}
       <AnimatePresence>

@@ -90,18 +90,18 @@ interface Location {
 
 export function StaffDetailsFormScreen() {
   const navigate = useNavigate();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
   const [existingStaffData, setExistingStaffData] = useState<any | null>(null);
   const [hasExistingData, setHasExistingData] = useState(false);
-  
+
   // Removed - no longer fetching departments/branches for selection
   const [departments, setDepartments] = useState<Department[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  
+
   // Image upload state
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
@@ -180,7 +180,7 @@ export function StaffDetailsFormScreen() {
       formData.overtime_eligibility !== undefined,
       formData.gratuity_applicable !== undefined,
     ];
-    
+
     const filledFields = requiredFields.filter(field => {
       if (typeof field === 'boolean') return field !== undefined;
       return field && field.trim() !== '';
@@ -209,16 +209,16 @@ export function StaffDetailsFormScreen() {
       if (branchResponse.data?.success) {
         setBranches(branchResponse.data.data.branches || []);
       }
-      
-      // Locations endpoint is optional - fetch separately to avoid blocking
+
+      // Locations endpoint is /api/attendance-locations
       try {
-        const locationResponse = await apiClient.get('/locations');
+        const locationResponse = await apiClient.get('/attendance-locations');
         if (locationResponse.data?.success) {
           setLocations(locationResponse.data.data.locations || []);
         }
       } catch (locationError) {
         // Locations endpoint may not exist - use empty array
-        console.warn('Locations endpoint not available, using empty list');
+        console.warn('Attendance locations endpoint not available, using empty list');
         setLocations([]);
       }
     } catch (error) {
@@ -232,24 +232,36 @@ export function StaffDetailsFormScreen() {
   const checkExistingStaffData = async () => {
     try {
       setLoading(true);
-      const userId = localStorage.getItem('userId');
+      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
       if (!userId) {
-        toast.error('User ID not found');
-        navigate('/login');
-        return;
+        console.warn('[StaffDetailsForm] User ID not found in storage');
+        // If not found in storage, check user from context
+        if (user?.id) {
+          console.log('[StaffDetailsForm] Using User ID from AuthContext:', user.id);
+        } else if (!isLoading) {
+          toast.error('User session not found. Please log in again.');
+          navigate('/login');
+          return;
+        } else {
+          // Wait for auth to initialize
+          return;
+        }
       }
+
+      const effectiveUserId = userId || user?.id;
+      if (!effectiveUserId) return;
 
       // Get staff data which includes invitation info
       // Note: New users may not have a staff record yet - that's OK
-      const response = await apiClient.get(`/staff/${userId}`);
-      
+      const response = await apiClient.get(`/staff/${effectiveUserId}`);
+
       if (response.status === 404) {
         // No staff record yet - this is normal for new users
         console.log('No staff record found, user will complete profile');
         setLoading(false);
         return;
       }
-      
+
       if (response.data?.success && response.data?.data?.staff) {
         const staff = response.data.data.staff;
         console.log('[StaffDetailsForm] Loaded existing staff data:', staff);
@@ -264,12 +276,12 @@ export function StaffDetailsFormScreen() {
 
         // Check if form is already filled - check critical fields
         const isFilled = staff.employee_id && staff.designation && staff.phone_number &&
-                        staff.date_of_birth && staff.gender && staff.department_id &&
-                        staff.branch_id && staff.current_address_id &&
-                        staff.emergency_contact_name && staff.bank_name;
+          staff.date_of_birth && staff.gender && staff.department_id &&
+          staff.branch_id && staff.current_address_id &&
+          staff.emergency_contact_name && staff.bank_name;
 
         if (isFilled) {
-          toast.info('Staff profile already completed');
+          toast.info('Staff profile already completed. Please contact HR to make any changes.');
           // Update user context to mark profile as complete
           if (user) {
             updateUser({
@@ -277,10 +289,10 @@ export function StaffDetailsFormScreen() {
               needs_profile_completion: false
             });
           }
-          // Redirect to dashboard
+          // Redirect back to profile page gracefully
           setTimeout(() => {
-            navigate('/dashboard');
-          }, 1000);
+            navigate('/profile');
+          }, 1500);
         } else {
           // Parse dependents from JSON if exists
           let dependentsData: Dependent[] = [];
@@ -296,7 +308,7 @@ export function StaffDetailsFormScreen() {
 
           // Pre-fill with existing data (department/branch from invitation or user selection)
           const prefilledFormData = {
-            employee_id: staff.employee_id || `EMP${userId}`,
+            employee_id: staff.employee_id || `EMP${effectiveUserId}`,
             designation: staff.designation || '',
             department_id: staff.department_id?.toString() || '',
             branch_id: staff.branch_id?.toString() || '',
@@ -482,7 +494,7 @@ export function StaffDetailsFormScreen() {
   const handleSubmit = async () => {
     try {
       setSaving(true);
-      const userId = localStorage.getItem('userId');
+      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
       if (!userId) {
         toast.error('User ID not found');
         return;
@@ -550,10 +562,11 @@ export function StaffDetailsFormScreen() {
         // Upload profile image if provided
         let profileImageUrl = null;
         if (profileImage) {
-          profileImageUrl = await uploadProfileImage(userId);
+          const userId_to_use = localStorage.getItem('userId') || sessionStorage.getItem('userId') || user?.id;
+          profileImageUrl = await uploadProfileImage(userId_to_use?.toString() || '');
         }
 
-        toast.success('Profile completed successfully! Redirecting to dashboard...');
+        toast.success('Profile updated successfully!');
 
         // Update user context to mark profile as complete
         if (user) {
@@ -564,9 +577,9 @@ export function StaffDetailsFormScreen() {
           });
         }
 
-        // Navigate to dashboard after a short delay
+        // Navigate back to profile
         setTimeout(() => {
-          navigate('/dashboard');
+          navigate('/profile');
         }, 1500);
       } else {
         toast.error(response.data?.message || 'Failed to submit details');
@@ -584,19 +597,17 @@ export function StaffDetailsFormScreen() {
       {Array.from({ length: totalSteps }, (_, i) => i + 1).map((stepNum) => (
         <div key={stepNum} className="flex items-center">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
-              stepNum <= step
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${stepNum <= step
                 ? 'bg-[#1A2B3C] text-white'
                 : 'bg-gray-200 text-gray-500'
-            }`}
+              }`}
           >
             {stepNum < step ? <CheckCircle className="w-5 h-5" /> : stepNum}
           </div>
           {stepNum < totalSteps && (
             <div
-              className={`w-8 md:w-12 h-0.5 ${
-                stepNum < step ? 'bg-[#1A2B3C]' : 'bg-gray-200'
-              }`}
+              className={`w-8 md:w-12 h-0.5 ${stepNum < step ? 'bg-[#1A2B3C]' : 'bg-gray-200'
+                }`}
             />
           )}
         </div>
@@ -799,7 +810,7 @@ export function StaffDetailsFormScreen() {
         <MapPin className="w-5 h-5 text-[#1A2B3C]" />
         Contact & Address Information
       </h3>
-      
+
       <div className="space-y-4">
         <div>
           <Label htmlFor="current_address">Current Address *</Label>
@@ -1163,7 +1174,7 @@ export function StaffDetailsFormScreen() {
   const handleUpdateDependent = (id: string, field: keyof Dependent, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
-      dependents: prev.dependents.map(dep => 
+      dependents: prev.dependents.map(dep =>
         dep.id === id ? { ...dep, [field]: value } : dep
       ),
     }));
@@ -1321,7 +1332,7 @@ export function StaffDetailsFormScreen() {
         <FileText className="w-5 h-5 text-[#1A2B3C]" />
         Review Your Information
       </h3>
-      
+
       <div className="space-y-4">
         <Card>
           <CardContent className="p-4 space-y-2">
@@ -1464,7 +1475,7 @@ export function StaffDetailsFormScreen() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Complete Your Profile</h1>
             <p className="text-gray-600 text-sm">Please fill in your staff details to complete your onboarding</p>
           </div>
-          
+
           {/* Progress Bar */}
           <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-2">
@@ -1473,7 +1484,7 @@ export function StaffDetailsFormScreen() {
             </div>
             <Progress value={completionPercentage} className="h-2" />
             <p className="text-xs text-gray-500 mt-2">
-              {completionPercentage < 100 
+              {completionPercentage < 100
                 ? `${100 - completionPercentage}% remaining - please complete all required fields`
                 : 'All required fields completed! Ready to submit.'}
             </p>

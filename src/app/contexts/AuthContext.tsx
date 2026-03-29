@@ -83,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem('userId');
             localStorage.removeItem('rememberMe');
             localStorage.removeItem('tokenExpiry');
+            sessionStorage.removeItem('authToken');
+            sessionStorage.removeItem('userId');
             setUser(null);
             setIsLoading(false);
             return;
@@ -141,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('userId');
       localStorage.removeItem('rememberMe');
       localStorage.removeItem('tokenExpiry');
+      sessionStorage.removeItem('authToken');
+      sessionStorage.removeItem('userId');
       setUser(null);
     } finally {
       setIsLoading(false);

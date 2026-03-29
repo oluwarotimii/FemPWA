@@ -6,6 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, isWeekend, parseISO } from "date-fns";
 import { attendanceApi } from "@/app/services/api";
+import { apiClient } from "@/app/services/api/apiClient";
 
 // Live attendance data with various statuses
 interface AttendanceRecord {
@@ -189,21 +190,13 @@ export default function AttendanceTracker() {
         setError(null);
 
         // Fetch user's branch and working days
-        const userResponse = await fetch('/api/users/me', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
-        });
-        const userData = await userResponse.json();
+        const userResponse = await apiClient.get('/users/me');
+        const userData = userResponse.data;
         if (userData.data?.user?.branch_id) {
           setUserBranchId(userData.data.user.branch_id);
           
-          const workingDaysResponse = await fetch(`/api/branch-working-days?branchId=${userData.data.user.branch_id}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-            }
-          });
-          const workingDaysData = await workingDaysResponse.json();
+          const workingDaysResponse = await apiClient.get(`/branch-working-days?branchId=${userData.data.user.branch_id}`);
+          const workingDaysData = workingDaysResponse.data;
           
           if (workingDaysData.data?.workingDays) {
             const workingDaysMap: Record<string, boolean> = {};

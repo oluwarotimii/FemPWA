@@ -369,7 +369,7 @@ export function ProfileScreen() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoRow label="Bank Name" value={staffDetails?.bank_name || 'N/A'} />
             <InfoRow label="Account Number" value={staffDetails?.bank_account_number ? '****' + staffDetails.bank_account_number.slice(-4) : 'N/A'} />
-            <InfoRow label="IFSC Code" value={staffDetails?.bank_ifsc_code || 'N/A'} />
+            {/* <InfoRow label="IFSC Code" value={staffDetails?.bank_ifsc_code || 'N/A'} /> */}
           </div>
         </CardContent>
       </Card>

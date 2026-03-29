@@ -14,7 +14,7 @@ export function NotificationsScreen() {
     const fetchNotifications = async () => {
       try {
         console.log('Fetching notifications...'); // Debug log
-        console.log('Current token:', localStorage.getItem('authToken')); // Debug log
+        console.log('Current token status:', (localStorage.getItem('authToken') || sessionStorage.getItem('authToken')) ? 'Available' : 'Missing'); // Debug log
         const response = await notificationApi.getNotifications({ limit: 20 });
         setNotificationsList(response.data.notifications);
       } catch (error) {

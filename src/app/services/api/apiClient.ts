@@ -12,14 +12,15 @@ const apiClient = axios.create({
 // Request interceptor to add auth token and validate it
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
 
-    // Check if token exists before making the request
-    if (!token) {
+    // Skip token check for public endpoints (login, register, etc.)
+    const publicEndpoints = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password'];
+    const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
+
+    if (!token && !isPublicEndpoint) {
       console.warn('No authentication token found. Request may fail.', config.url);
-      // Optionally, we could redirect to login here
-      // window.location.href = '/login';
-    } else {
+    } else if (token && !isPublicEndpoint) {
       console.log('API Client - Using token for request:', config.url); // Debug log
       if (config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -47,6 +48,8 @@ apiClient.interceptors.response.use(
       console.log('Unauthorized request - clearing token and redirecting to login');
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
+      sessionStorage.removeItem('authToken');
+      sessionStorage.removeItem('userId');
       window.location.href = '/login';
     }
 

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/app/contexts/AuthContext';
 import { PWAProvider } from '@/app/contexts/PWAContext';
 import { Toaster } from '@/app/components/ui/sonner';
@@ -23,6 +23,7 @@ import { GuarantorPage } from '@/app/pages/GuarantorPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
+  const location = useLocation();
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -40,8 +41,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Don't redirect for password change or profile completion - let user access dashboard
-  // These are now optional and can be accessed from settings/profile
+  // Force password change if required - don't redirect if already on the password change screen
+  if (user?.needs_password_change && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
 
   // Don't render children until user is loaded
   if (!user) {
@@ -58,7 +61,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <BottomNavigation />
+      {!user?.needs_password_change && <BottomNavigation />}
     </>
   );
 }
@@ -89,7 +92,9 @@ function AppRoutes() {
       <Route
         path="/change-password"
         element={
-          <ChangePasswordScreen />
+          <ProtectedRoute>
+            <ChangePasswordScreen />
+          </ProtectedRoute>
         }
       />
       <Route

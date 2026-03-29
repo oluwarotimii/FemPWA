@@ -38,22 +38,12 @@ interface UpdateStaffRequest {
 export const staffApi = {
   // Get current user's staff details
   getCurrentUserStaffDetails: async (): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.get('/staff/me');
     return response.data;
   },
 
   // Get staff profile information
   getStaffProfile: async (id: number): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.get(`/staff/${id}`);
     return response.data;
   },
@@ -62,22 +52,12 @@ export const staffApi = {
 
   // Update staff profile information
   updateStaffProfile: async (id: number, request: UpdateStaffRequest): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.put(`/staff/${id}`, request);
     return response.data;
   },
 
   // Create staff profile (for new users filling personal details)
   createStaffProfile: async (data: any): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.post('/staff', data);
     return response.data;
   },

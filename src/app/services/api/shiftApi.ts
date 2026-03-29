@@ -590,6 +590,30 @@ export const shiftApi = {
   },
 
   /**
+   * Get my today's shift (including exceptions and holiday status)
+   * GET /my-shifts/today
+   */
+  getMyTodayShift: async (): Promise<{
+    success: boolean;
+    data: {
+      schedule: {
+        user_id: number;
+        date: string;
+        schedule_type: 'regular' | 'exception' | 'holiday' | 'none';
+        start_time: string | null;
+        end_time: string | null;
+        template_name: string | null;
+        is_working_day: boolean;
+        schedule_note?: string;
+      };
+      date: string;
+    };
+  }> => {
+    const response = await apiClient.get('/my-shifts/today');
+    return response.data;
+  },
+
+  /**
    * Create shift exception
    * POST /shift-scheduling/exceptions
    */

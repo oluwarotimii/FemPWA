@@ -3,7 +3,8 @@ import { Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, AlertCircle, Log
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
-import { attendanceApi } from '@/app/services/api';
+import { attendanceApi, branchesApi } from '@/app/services/api';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/app/components/ui/sheet";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, parseISO } from "date-fns";
 
@@ -192,13 +193,14 @@ function StatsBar({ records }: StatsBarProps) {
 }
 
 export function AttendanceHistoryScreen() {
+  const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [calendarRecords, setCalendarRecords] = useState<CalendarDayRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<{ date: Date; record?: CalendarDayRecord } | null>(null);
-  const [branchWorkingDays, setBranchWorkingDays] = useState<Record<string, boolean>>({});
-  const [userBranchId, setUserBranchId] = useState<number | null>(null);
+  const [branchWorkingDays, setBranchWorkingDays] = useState<Record<string, any>>({});
+  const [userBranchId, setUserBranchId] = useState<number | null>(user?.branchId || null);
 
   const monthNames = [
     'January',
@@ -218,30 +220,26 @@ export function AttendanceHistoryScreen() {
   useEffect(() => {
     const fetchAttendanceAndWorkingDays = async () => {
       try {
-        // Fetch user's branch info first
-        const userResponse = await fetch('/api/users/me', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
-        });
-        const userData = await userResponse.json();
-        if (userData.data?.user?.branch_id) {
-          setUserBranchId(userData.data.user.branch_id);
-          
-          // Fetch branch working days
-          const workingDaysResponse = await fetch(`/api/branch-working-days?branchId=${userData.data.user.branch_id}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        setLoading(true);
+        // Fetch branch working days if we have a branch ID
+        const branchId = user?.branchId || userBranchId;
+        if (branchId) {
+          try {
+            const workingDaysData = await branchesApi.getBranchWorkingDays(branchId);
+            
+            if (workingDaysData.success && workingDaysData.data?.workingDays) {
+              const workingDaysMap: Record<string, any> = {};
+              workingDaysData.data.workingDays.forEach((day: any) => {
+                workingDaysMap[day.day_of_week] = {
+                  is_working_day: day.is_working_day,
+                  start_time: day.start_time,
+                  end_time: day.end_time
+                };
+              });
+              setBranchWorkingDays(workingDaysMap);
             }
-          });
-          const workingDaysData = await workingDaysResponse.json();
-          
-          if (workingDaysData.data?.workingDays) {
-            const workingDaysMap: Record<string, boolean> = {};
-            workingDaysData.data.workingDays.forEach((day: any) => {
-              workingDaysMap[day.day_of_week] = day.is_working_day;
-            });
-            setBranchWorkingDays(workingDaysMap);
+          } catch (err) {
+            console.error('Failed to fetch branch working days:', err);
           }
         }
         
@@ -298,7 +296,8 @@ export function AttendanceHistoryScreen() {
           }
 
           // No record - check branch working days configuration
-          const isWorkingDay = branchWorkingDays[dayName] !== false; // Default to true if not configured
+          const dayConfig = branchWorkingDays[dayName];
+          const isWorkingDay = dayConfig ? dayConfig.is_working_day : true; // Default to true if not configured
           
           if (!isWorkingDay) {
             return {
@@ -728,15 +727,24 @@ export function AttendanceHistoryScreen() {
               {/* Expected Schedule */}
               {selectedDay.record?.status !== "weekend" &&
                 selectedDay.record?.status !== "holiday" &&
-                selectedDay.record?.status !== "absent" && (
+                selectedDay.record?.status !== "future" && (
                   <Card className="p-4 bg-gray-50">
                     <div className="text-sm text-gray-700 font-medium mb-2">
                       Expected Schedule
                     </div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div>Start Time: {OFFICE_START}</div>
-                      <div>End Time: {OFFICE_END}</div>
-                    </div>
+                    {(() => {
+                      const dayOfWeek = getDay(selectedDay.date);
+                      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                      const dayName = dayNames[dayOfWeek];
+                      const daySchedule = branchWorkingDays[dayName];
+                      
+                      return (
+                        <div className="space-y-1 text-sm text-gray-600">
+                          <div>Start Time: {daySchedule?.start_time || OFFICE_START}</div>
+                          <div>End Time: {daySchedule?.end_time || OFFICE_END}</div>
+                        </div>
+                      );
+                    })()}
                   </Card>
                 )}
             </div>

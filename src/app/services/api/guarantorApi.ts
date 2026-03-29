@@ -80,66 +80,36 @@ export interface GuarantorInput {
 export const guarantorApi = {
   // Get all guarantors for a staff member
   getGuarantors: async (staffId: number): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.get(`/guarantors/staff/${staffId}`);
     return response.data;
   },
 
   // Get specific guarantor
   getGuarantor: async (guarantorId: number): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.get(`/guarantors/${guarantorId}`);
     return response.data;
   },
 
   // Create new guarantor
   createGuarantor: async (data: GuarantorInput): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.post('/guarantors', data);
     return response.data;
   },
 
   // Update guarantor
   updateGuarantor: async (guarantorId: number, data: Partial<GuarantorInput>): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.put(`/guarantors/${guarantorId}`, data);
     return response.data;
   },
 
   // Delete guarantor
   deleteGuarantor: async (guarantorId: number): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.delete(`/guarantors/${guarantorId}`);
     return response.data;
   },
 
   // Verify guarantor (admin only)
   verifyGuarantor: async (guarantorId: number, verificationNotes?: string): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const response = await apiClient.post(`/guarantors/${guarantorId}/verify`, {
       verification_notes: verificationNotes
     });
@@ -148,11 +118,6 @@ export const guarantorApi = {
 
   // Upload guarantor document (form or ID)
   uploadDocument: async (guarantorId: number, documentType: 'form' | 'id', file: File): Promise<any> => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      throw new Error('User not authenticated');
-    }
-
     const formData = new FormData();
     formData.append('document', file);
 

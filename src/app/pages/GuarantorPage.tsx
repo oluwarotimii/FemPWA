@@ -156,8 +156,7 @@ export function GuarantorPage() {
   const [formData, setFormData] = useState<GuarantorInput>(emptyForm);
 
   useEffect(() => {
-    // Set staff_id from localStorage on mount
-    const userId = localStorage.getItem('userId');
+    const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
     if (userId) {
       setFormData(prev => ({ ...prev, staff_id: parseInt(userId) }));
     }
@@ -170,9 +169,11 @@ export function GuarantorPage() {
       setError(null);
 
       // Get current user's staff ID from context or localStorage
-      const userId = localStorage.getItem('userId');
+      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
       if (!userId) {
-        throw new Error('User ID not found');
+        // Fallback to user from AuthContext if available (can be added via useAuth later if needed)
+        // for now just handle the storage fallback
+        throw new Error('User session not found');
       }
 
       // Load guarantors using the API client

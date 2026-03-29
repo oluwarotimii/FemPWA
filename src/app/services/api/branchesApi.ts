@@ -48,4 +48,10 @@ export const branchesApi = {
     const response = await apiClient.get(`/branches/${branchId}/holidays`, { params });
     return response.data;
   },
+  
+  // Get working days for a branch
+  getBranchWorkingDays: async (branchId: number): Promise<{ success: boolean; message: string; data: { workingDays: any[] } }> => {
+    const response = await apiClient.get(`/branch-working-days/${branchId}/working-days`);
+    return response.data;
+  },
 };

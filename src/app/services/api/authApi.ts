@@ -58,16 +58,14 @@ export const authApi = {
       // Always remove local authentication data
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
+      sessionStorage.removeItem('authToken');
+      sessionStorage.removeItem('userId');
     }
   },
 
   changePassword: async (request: ChangePasswordRequest): Promise<{ success: boolean; message: string }> => {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      throw new Error('User not authenticated');
-    }
-
-    const response = await apiClient.put(`/users/${userId}/password-change`, request);
+    // The backend uses the authenticated user's ID
+    const response = await apiClient.put('/users/me/password-change', request);
     return response.data;
   },
 };
