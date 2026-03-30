@@ -65,7 +65,7 @@ export const authApi = {
 
   changePassword: async (request: ChangePasswordRequest): Promise<{ success: boolean; message: string }> => {
     // The backend uses the authenticated user's ID
-    const response = await apiClient.put('/users/me/password-change', request);
+    const response = await apiClient.post('/password-change/change', request);
     return response.data;
   },
 };
