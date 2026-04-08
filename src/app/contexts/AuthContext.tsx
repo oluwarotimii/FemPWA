@@ -209,16 +209,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: userData.phone,
         designation: userData.designation,
         department: userData.department,
-        needs_password_change: userData.needs_password_change,
-        needs_profile_completion: userData.needs_profile_completion
+        needs_password_change: userData.needs_password_change ?? false,
+        needs_profile_completion: userData.needs_profile_completion ?? false
       };
 
       // Set user state and force a small delay to ensure state propagates
       setUser(mappedUser);
-      console.log('Login successful! User state set.');
-      
+      console.log('Login successful! User state set:', mappedUser);
+
       // Small delay to ensure React state propagates before navigation
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       return mappedUser;
     } catch (error: any) {

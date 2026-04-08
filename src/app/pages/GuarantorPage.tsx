@@ -455,7 +455,7 @@ export function GuarantorPage() {
                       <button
                         onClick={() => setViewingDoc({
                           type: 'pdf',
-                          path: `http://localhost:3000${guarantor.guarantor_form_path}`,
+                          path: `${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${guarantor.guarantor_form_path}`,
                           name: 'Guarantor Form'
                         })}
                         className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 flex items-center gap-1"
@@ -485,7 +485,7 @@ export function GuarantorPage() {
                       <button
                         onClick={() => setViewingDoc({
                           type: 'pdf',
-                          path: `http://localhost:3000${guarantor.id_document_path}`,
+                          path: `${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${guarantor.id_document_path}`,
                           name: 'ID Document'
                         })}
                         className="text-xs px-2 py-1 bg-purple-50 text-purple-600 rounded hover:bg-purple-100 flex items-center gap-1"

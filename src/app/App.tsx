@@ -58,10 +58,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // BottomNavigation should show for all authenticated users
+  // The condition !user?.needs_password_change ensures it doesn't show on password change screen
   return (
     <>
       {children}
-      {!user?.needs_password_change && <BottomNavigation />}
+      <BottomNavigation key={user?.id || 'bottom-nav'} />
     </>
   );
 }
