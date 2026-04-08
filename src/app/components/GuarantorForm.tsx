@@ -409,7 +409,7 @@ export function GuarantorForm({ staffId, onClose, onSuccess }: GuarantorFormProp
                       </label>
                       {guarantor.guarantor_form_path && (
                         <a
-                          href={`http://localhost:3000${guarantor.guarantor_form_path}`}
+                          href={`${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${guarantor.guarantor_form_path}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-gray-600 hover:text-gray-800 text-sm font-medium"
