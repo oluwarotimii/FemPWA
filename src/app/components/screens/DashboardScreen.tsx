@@ -497,7 +497,14 @@ export function DashboardScreen() {
           </p>
         </div>
         <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-          <img src={user?.avatar} alt={user?.fullName} className="w-full h-full rounded-full" />
+          <img
+            src={user?.avatar
+              ? (user.avatar.startsWith('http') ? user.avatar : `${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${user.avatar}`)
+              : 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'
+            }
+            alt={user?.fullName}
+            className="w-full h-full rounded-full"
+          />
         </div>
       </div>
 

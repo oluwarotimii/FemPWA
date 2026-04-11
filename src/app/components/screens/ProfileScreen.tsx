@@ -190,7 +190,11 @@ export function ProfileScreen() {
           <div className="flex items-start gap-4">
             <div className="relative">
               <img
-                src={staffDetails?.profile_picture || user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
+                src={(() => {
+                  const pic = staffDetails?.profile_picture || user?.avatar;
+                  if (!pic) return 'https://api.dicebear.com/7.x/avataaars/svg?seed=default';
+                  return pic.startsWith('http') ? pic : `${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${pic}`;
+                })()}
                 alt={user?.fullName}
                 className="w-20 h-20 rounded-full border-4 border-white/20"
               />

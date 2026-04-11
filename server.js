@@ -14,5 +14,6 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Femtech HR PWA is running on port ${PORT}`);
-  console.log(`📱 Access at: https://hrapp.tripa.com.ng`);
+  const appUrl = process.env.APP_URL || `https://hrapp.femtechaccess.com.ng`;
+  console.log(`📱 Access at: ${appUrl}`);
 });

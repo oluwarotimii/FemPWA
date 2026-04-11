@@ -270,8 +270,11 @@ export function StaffDetailsFormScreen() {
 
         // Load existing profile picture if available
         if (staff.profile_picture) {
-          setProfileImagePreview(staff.profile_picture);
-          console.log('[StaffDetailsForm] Set profile image preview:', staff.profile_picture);
+          const imageUrl = staff.profile_picture.startsWith('http')
+            ? staff.profile_picture
+            : `${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${staff.profile_picture}`;
+          setProfileImagePreview(imageUrl);
+          console.log('[StaffDetailsForm] Set profile image preview:', imageUrl);
         }
 
         // Check if form is already filled - check critical fields
