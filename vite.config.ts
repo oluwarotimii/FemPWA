@@ -1,37 +1,41 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
-  plugins: [
-    // The React and Tailwind plugins are both required for Make, even if
-    // Tailwind is not being actively used – do not remove them
-    react(),
-    tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      devOptions: {
-        enabled: false
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/hrapi\.tripa\.com\.ng\/api\/.*$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 300, // 5 minutes
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiDomain = env.VITE_API_DOMAIN || 'hrapi.femtechaccess.com.ng'
+
+  return {
+    plugins: [
+      // The React and Tailwind plugins are both required for Make, even if
+      // Tailwind is not being actively used – do not remove them
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        devOptions: {
+          enabled: false
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
+          runtimeCaching: [
+            {
+              urlPattern: new RegExp(`^https:\\/\\/${apiDomain.replace(/\./g, '\\.')}\\/api\\/.*$`),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'api-cache',
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 300, // 5 minutes
+                },
               },
             },
-          },
-        ],
-      },
+          ],
+        },
       manifest: {
         name: 'Femtech Human Resource',
         short_name: 'Femtech HR',
@@ -73,4 +77,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })
