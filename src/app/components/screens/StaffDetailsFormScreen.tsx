@@ -509,7 +509,7 @@ export function StaffDetailsFormScreen() {
         // Don't send department_id, branch_id, employment_type, work_mode - they're set by HR
         joining_date: formData.joining_date,
         work_email: formData.work_email,
-        personal_email: formData.personal_email,
+        // Don't send personal_email - it's set via invitation and unique
         phone_number: formData.phone_number,
         alternate_phone_number: formData.alternate_phone_number,
         date_of_birth: formData.date_of_birth,
@@ -765,18 +765,6 @@ export function StaffDetailsFormScreen() {
             placeholder="+254 7XX XXX XXX"
             value={formData.alternate_phone_number}
             onChange={(e) => handleInputChange('alternate_phone_number', e.target.value)}
-            className="mt-1"
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="personal_email">Personal Email</Label>
-          <Input
-            id="personal_email"
-            type="email"
-            placeholder="your@email.com"
-            value={formData.personal_email}
-            onChange={(e) => handleInputChange('personal_email', e.target.value)}
             className="mt-1"
           />
         </div>
@@ -1347,7 +1335,7 @@ export function StaffDetailsFormScreen() {
               <div><span className="text-gray-500">DOB:</span> {formData.date_of_birth || '-'}</div>
               <div><span className="text-gray-500">Gender:</span> {formData.gender || '-'}</div>
               <div><span className="text-gray-500">Phone:</span> {formData.phone_number || '-'}</div>
-              <div><span className="text-gray-500">Email:</span> {formData.personal_email || '-'}</div>
+              <div><span className="text-gray-500">Email:</span> {formData.work_email || '-'}</div>
               <div><span className="text-gray-500">Marital Status:</span> {formData.marital_status || '-'}</div>
               <div><span className="text-gray-500">Blood Group:</span> {formData.blood_group || '-'}</div>
             </div>
@@ -1561,7 +1549,7 @@ export function StaffDetailsFormScreen() {
         {/* Help Text */}
         <div className="mt-6 text-center text-sm text-gray-500">
           <p>Fields marked with * are required</p>
-          <p className="mt-1">Need help? Contact HR at hr@company.com</p>
+          <p className="mt-1">Need help? Contact HR Admin</p>
         </div>
       </div>
     </div>
