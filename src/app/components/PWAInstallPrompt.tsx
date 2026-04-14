@@ -26,10 +26,8 @@ export function PWAInstallPrompt() {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
-              <div className="bg-white text-[#1A2B3C] rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
-                HR
-              </div>
-              <p className="font-semibold">Install Staff Portal</p>
+              <img src="/femtech.png" alt="Femtech" className="w-8 h-8 rounded-full object-contain bg-white" />
+              <p className="font-semibold">Install Femtech TMS</p>
             </div>
             <p className="text-xs opacity-90 mb-3">
               Install our app for quick access:
@@ -85,10 +83,8 @@ export function PWAInstallPrompt() {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
-              <div className="bg-[#1A2B3C] text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
-                HR
-              </div>
-              <p className="font-semibold">Install Staff Portal</p>
+              <img src="/femtech.png" alt="Femtech" className="w-8 h-8 rounded-full object-contain bg-[#1A2B3C]" />
+              <p className="font-semibold">Install Femtech TMS</p>
             </div>
             <p className="text-xs text-gray-600 mb-3">
               Add to your home screen for quick access and offline support

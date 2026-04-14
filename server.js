@@ -13,7 +13,7 @@ app.get('*', (req, res) => {
 // Use the port provided by cPanel/Passenger
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Femtech HR PWA is running on port ${PORT}`);
+  console.log(`✅ Femtech TMS PWA is running on port ${PORT}`);
   const appUrl = process.env.APP_URL || `https://hrapp.femtechaccess.com.ng`;
   console.log(`📱 Access at: ${appUrl}`);
 });

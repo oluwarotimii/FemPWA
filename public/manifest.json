@@ -1,7 +1,7 @@
 {
-  "name": "Femtech Human Resource",
-  "short_name": "Femtech HR",
-  "description": "Employee self-service portal for attendance, leave management, and HR tasks",
+  "name": "Femtech TMS",
+  "short_name": "Femtech TMS",
+  "description": "Femtech TMS - Employee self-service portal for attendance, leave management, and HR tasks",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
