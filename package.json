@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Femtech Human Resource PWA - Employee Self-Service Portal",
+  "description": "Femtech TMS PWA - Employee Self-Service Portal",
   "main": "server.js",
   "scripts": {
     "build": "vite build",

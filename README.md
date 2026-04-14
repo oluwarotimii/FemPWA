@@ -1,7 +1,7 @@
 
-  # Employee PWA Staff Portal
+  # Femtech TMS - Employee PWA
 
-  This is a code bundle for Employee PWA Staff Portal. The original project is available at https://www.figma.com/design/LDM5w9Oe9uxXdW5OHNe49E/Employee-PWA-Staff-Portal.
+This is a code bundle for Femtech TMS Employee Self-Service Portal. The original project is available at https://www.figma.com/design/LDM5w9Oe9uxXdW5OHNe49E/Employee-PWA-Staff-Portal.
 
   ## Running the code
 
