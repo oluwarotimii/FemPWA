@@ -1335,7 +1335,7 @@ export function StaffDetailsFormScreen() {
               <div><span className="text-gray-500">DOB:</span> {formData.date_of_birth || '-'}</div>
               <div><span className="text-gray-500">Gender:</span> {formData.gender || '-'}</div>
               <div><span className="text-gray-500">Phone:</span> {formData.phone_number || '-'}</div>
-              <div><span className="text-gray-500">Email:</span> {formData.work_email || '-'}</div>
+              <div><span className="text-gray-500">Email (Login):</span> {formData.personal_email || '-'}</div>
               <div><span className="text-gray-500">Marital Status:</span> {formData.marital_status || '-'}</div>
               <div><span className="text-gray-500">Blood Group:</span> {formData.blood_group || '-'}</div>
             </div>

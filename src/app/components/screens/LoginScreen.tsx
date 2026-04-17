@@ -56,7 +56,7 @@ export function LoginScreen() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
+                placeholder="your@email.com"
                 required
                 className="w-full"
               />

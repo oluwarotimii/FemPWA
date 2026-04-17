@@ -273,8 +273,7 @@ export function ProfileScreen() {
             <InfoRow label="Blood Group" value={staffDetails?.blood_group || 'N/A'} />
             <InfoRow label="Phone Number" value={staffDetails?.phone_number || 'N/A'} icon={<Phone className="w-4 h-4" />} />
             <InfoRow label="Alternate Phone" value={staffDetails?.alternate_phone_number || 'N/A'} icon={<Phone className="w-4 h-4" />} />
-            <InfoRow label="Personal Email" value={staffDetails?.personal_email || 'N/A'} icon={<Mail className="w-4 h-4" />} />
-            <InfoRow label="Work Email" value={staffDetails?.work_email || 'N/A'} icon={<Mail className="w-4 h-4" />} />
+            <InfoRow label="Email (Login)" value={staffDetails?.personal_email || staffDetails?.email || 'N/A'} icon={<Mail className="w-4 h-4" />} />
           </div>
         </CardContent>
       </Card>
