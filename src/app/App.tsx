@@ -12,7 +12,7 @@ import { ShiftsManagementScreen } from '@/app/components/screens/ShiftsManagemen
 import { NotificationsScreen } from '@/app/components/screens/NotificationsScreen';
 import { FormsScreen } from '@/app/components/screens/FormsScreen';
 import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
-// import { ChangePasswordScreen } from '@/app/components/screens/ChangePasswordScreen'; // Temporarily disabled
+import { ChangePasswordScreen } from '@/app/components/screens/ChangePasswordScreen';
 import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
 import { StaffDetailsFormScreen } from '@/app/components/screens/StaffDetailsFormScreen';
 import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
