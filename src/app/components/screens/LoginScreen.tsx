@@ -25,8 +25,10 @@ export function LoginScreen() {
       toast.success('Login successful!');
       // Always navigate to dashboard after login
       navigate('/dashboard');
-    } catch (error) {
-      toast.error('Invalid credentials. Please try again.');
+    } catch (error: any) {
+      console.error('Login error details:', error);
+      // Use the descriptive message from the error object if available
+      toast.error(error.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
