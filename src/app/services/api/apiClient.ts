@@ -45,12 +45,20 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401) {
       // Token might be expired or invalid, redirect to login
-      console.log('Unauthorized request - clearing token and redirecting to login');
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userId');
-      sessionStorage.removeItem('authToken');
-      sessionStorage.removeItem('userId');
-      window.location.href = '/login';
+      // BUT: Don't redirect if we are already on the login page or trying to login
+      const isLoginRequest = error.config?.url?.includes('/auth/login');
+      const isLoginPage = window.location.pathname === '/login';
+
+      if (!isLoginRequest && !isLoginPage) {
+        console.log('Unauthorized request - clearing token and redirecting to login');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('permissions');
+        localStorage.removeItem('userData');
+        sessionStorage.removeItem('authToken');
+        sessionStorage.removeItem('userId');
+        window.location.href = '/login';
+      }
     }
 
     // Format error response according to API documentation
