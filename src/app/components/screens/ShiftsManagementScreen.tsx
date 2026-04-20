@@ -342,13 +342,13 @@ export function ShiftsManagementScreen() {
           <p className="text-xs text-gray-600 mt-0.5">View and manage your shift schedule</p>
         </div>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="my-schedule">Shifts</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+            {/* <TabsTrigger value="upcoming">Upcoming</TabsTrigger> */}
             <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
           </TabsList>
           <TabsContent value="my-schedule">{renderMyScheduleTab()}</TabsContent>
-          <TabsContent value="upcoming">{renderUpcomingTab()}</TabsContent>
+          {/* <TabsContent value="upcoming">{renderUpcomingTab()}</TabsContent> */}
           <TabsContent value="exceptions">{renderExceptionsTab()}</TabsContent>
         </Tabs>
       </div>
