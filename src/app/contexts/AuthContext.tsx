@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Login API response:', response);
 
       if (!response || !response.success || !response.data) {
-        throw new Error('No response received from server');
+        throw new Error(response?.message || 'Invalid response from server');
       }
 
       console.log('Extracting user and token data...');
@@ -223,7 +223,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return mappedUser;
     } catch (error: any) {
       console.error('Login error:', error);
-      throw new Error(error.response?.data?.message || error.message || 'Invalid credentials');
+      // Handle the case where the API returned an error message
+      const errorMessage = error.response?.data?.message || error.message || 'Invalid credentials';
+      throw new Error(errorMessage);
     }
   };
   const logout = async () => {

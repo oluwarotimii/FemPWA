@@ -21,14 +21,29 @@ export function LoginScreen() {
     setLoading(true);
 
     try {
-      await login(email, password, rememberMe);
-      toast.success('Login successful!');
-      // Always navigate to dashboard after login
-      navigate('/dashboard');
+      // The login function returns the user object on success
+      // and throws an error on failure.
+      const user = await login(email, password, rememberMe);
+
+      if (user) {
+        toast.success('Login successful!');
+        // Always navigate to dashboard after login
+        navigate('/dashboard');
+      }
     } catch (error: any) {
+      // Handle thrown errors from the login function
       console.error('Login error details:', error);
-      // Use the descriptive message from the error object if available
-      toast.error(error.message || 'Invalid credentials. Please try again.');
+      
+      // Use a more descriptive error message if available
+      let errorMessage = 'Invalid credentials. Please try again.';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
