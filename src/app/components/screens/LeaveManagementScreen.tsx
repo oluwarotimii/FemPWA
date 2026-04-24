@@ -227,7 +227,7 @@ export function LeaveManagementScreen() {
   };
 
   return (
-    <div className="p-3 pb-20 max-w-4xl mx-auto space-y-4 sm:space-y-6">
+    <div className="min-h-screen bg-gray-50 max-w-4xl mx-auto px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -451,7 +451,7 @@ export function LeaveManagementScreen() {
       </Tabs>
 
       {/* Floating Action Button */}
-      <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 flex flex-col gap-2 sm:gap-3 z-10">
+      <div className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 flex flex-col gap-2 sm:gap-3 z-10">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}

@@ -62,7 +62,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // The condition !user?.needs_password_change ensures it doesn't show on password change screen
   return (
     <>
-      {children}
+      <div className="min-h-screen pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+        {children}
+      </div>
       <BottomNavigation key={user?.id || 'bottom-nav'} />
     </>
   );

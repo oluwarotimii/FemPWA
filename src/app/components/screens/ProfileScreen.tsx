@@ -59,6 +59,7 @@ interface StaffDetails {
   background_verification_status: string;
   full_name: string;
   email: string;
+  branch_name?: string;
 }
 
 export function ProfileScreen() {
@@ -197,6 +198,8 @@ export function ProfileScreen() {
     return 'N/A';
   };
 
+  const displayBranchName = branch?.name || staffDetails?.branch_name || 'Not specified';
+
   if (loading) {
     return (
       <div className="p-4 pb-20 max-w-4xl mx-auto space-y-6">
@@ -278,7 +281,7 @@ export function ProfileScreen() {
             <Building2 className="w-6 h-6 mx-auto text-blue-600 mb-2" />
             <div className="text-xs text-gray-500">Branch</div>
             <div className="font-semibold text-gray-900 text-sm">
-              {branch?.name || 'Loading...'}
+              {displayBranchName}
             </div>
             {branch?.city && (
               <div className="text-xs text-gray-500 mt-1">{branch.city}</div>
