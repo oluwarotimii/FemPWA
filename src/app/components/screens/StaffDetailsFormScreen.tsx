@@ -12,12 +12,16 @@ import { Switch } from '@/app/components/ui/switch';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { toast } from 'sonner';
 import apiClient from '@/app/services/api/apiClient';
+import statesAndLgas from 'nigeria-state-lga-data';
 
 interface Dependent {
   id: string;
   name: string;
   relationship: string;
   date_of_birth: string;
+  nationality: string;
+  state_of_origin: string;
+  lga: string;
   gender: string;
   phone_number: string;
   is_primary: boolean;
@@ -38,6 +42,9 @@ interface StaffDetails {
   phone_number: string;
   alternate_phone_number: string;
   date_of_birth: string;
+  nationality: string;
+  state_of_origin: string;
+  lga: string;
   gender: string;
   marital_status: string;
   blood_group: string;
@@ -209,6 +216,9 @@ export function StaffDetailsFormScreen() {
     phone_number: '',
     alternate_phone_number: '',
     date_of_birth: '',
+    nationality: 'Nigerian',
+    state_of_origin: '',
+    lga: '',
     gender: '',
     marital_status: '',
     blood_group: '',
@@ -249,6 +259,8 @@ export function StaffDetailsFormScreen() {
     professional_certifications: '',
     allergies: '',
   });
+  const [nigerianStates, setNigerianStates] = useState<string[]>([]);
+  const [selectedStateLgas, setSelectedStateLgas] = useState<string[]>([]);
 
   const totalSteps = 6; // Reduced from 7 - removed Employment Details step (now set by HR)
 
@@ -256,6 +268,10 @@ export function StaffDetailsFormScreen() {
   const calculateCompletionPercentage = () => {
     const requiredFields = [
       formData.date_of_birth,
+      formData.joining_date,
+      formData.nationality,
+      formData.state_of_origin,
+      formData.lga,
       formData.gender,
       formData.phone_number,
       formData.department_id,
@@ -285,7 +301,37 @@ export function StaffDetailsFormScreen() {
   useEffect(() => {
     checkExistingStaffData();
     fetchDepartmentsAndBranches();
+    try {
+      const states = statesAndLgas.getStates();
+      setNigerianStates(Array.isArray(states) ? states : []);
+    } catch (error) {
+      console.error('Failed to load Nigerian states:', error);
+      setNigerianStates([]);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!formData.state_of_origin) {
+      setSelectedStateLgas([]);
+      if (formData.lga) {
+        setFormData((prev) => ({ ...prev, lga: '' }));
+      }
+      return;
+    }
+
+    try {
+      const lgas = statesAndLgas.getLgas(formData.state_of_origin);
+      const lgaList = Array.isArray(lgas) ? lgas : [];
+      setSelectedStateLgas(lgaList);
+
+      if (formData.lga && !lgaList.includes(formData.lga)) {
+        setFormData((prev) => ({ ...prev, lga: '' }));
+      }
+    } catch (error) {
+      console.error('Failed to load LGAs for state:', formData.state_of_origin, error);
+      setSelectedStateLgas([]);
+    }
+  }, [formData.state_of_origin]);
 
   const fetchDepartmentsAndBranches = async () => {
     try {
@@ -415,6 +461,9 @@ export function StaffDetailsFormScreen() {
             phone_number: staff.phone_number || '',
             alternate_phone_number: staff.alternate_phone_number || '',
             date_of_birth: staff.date_of_birth || '',
+            nationality: staff.nationality || 'Nigerian',
+            state_of_origin: staff.state_of_origin || '',
+            lga: staff.lga || '',
             gender: staff.gender || '',
             marital_status: staff.marital_status || '',
             blood_group: staff.blood_group || '',
@@ -615,7 +664,15 @@ export function StaffDetailsFormScreen() {
   const validateStep = (currentStep: number): boolean => {
     switch (currentStep) {
       case 1: // Personal Information
-        if (!formData.date_of_birth || !formData.gender || !formData.phone_number) {
+        if (
+          !formData.date_of_birth ||
+          !formData.joining_date ||
+          !formData.nationality ||
+          !formData.state_of_origin ||
+          !formData.lga ||
+          !formData.gender ||
+          !formData.phone_number
+        ) {
           toast.error('Please fill in all required personal information fields marked with *');
           return false;
         }
@@ -696,6 +753,9 @@ export function StaffDetailsFormScreen() {
         phone_number: formData.phone_number,
         alternate_phone_number: formData.alternate_phone_number,
         date_of_birth: formData.date_of_birth,
+        nationality: formData.nationality,
+        state_of_origin: formData.state_of_origin,
+        lga: formData.lga,
         gender: formData.gender,
         marital_status: formData.marital_status,
         blood_group: formData.blood_group,
@@ -875,6 +935,67 @@ export function StaffDetailsFormScreen() {
             onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
             className="mt-1"
           />
+        </div>
+
+        <div>
+          <Label htmlFor="joining_date">Employment Date *</Label>
+          <Input
+            id="joining_date"
+            type="date"
+            value={formData.joining_date}
+            onChange={(e) => handleInputChange('joining_date', e.target.value)}
+            className="mt-1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="nationality">Nationality *</Label>
+          <Input
+            id="nationality"
+            placeholder="e.g., Nigerian"
+            value={formData.nationality}
+            onChange={(e) => handleInputChange('nationality', e.target.value)}
+            className="mt-1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="state_of_origin">State of Origin *</Label>
+          <Select
+            value={formData.state_of_origin}
+            onValueChange={(value) => handleInputChange('state_of_origin', value)}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Select state of origin" />
+            </SelectTrigger>
+            <SelectContent>
+              {nigerianStates.map((state) => (
+                <SelectItem key={state} value={state}>
+                  {state}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="lga">LGA *</Label>
+          <Select
+            value={formData.lga}
+            onValueChange={(value) => handleInputChange('lga', value)}
+            disabled={!formData.state_of_origin}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder={formData.state_of_origin ? 'Select LGA' : 'Select state first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {selectedStateLgas.map((lga) => (
+                <SelectItem key={lga} value={lga}>
+                  {lga}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -1490,7 +1611,11 @@ export function StaffDetailsFormScreen() {
               Personal Information
             </h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
+              <div><span className="text-gray-500">Employment Date:</span> {formData.joining_date || '-'}</div>
               <div><span className="text-gray-500">DOB:</span> {formData.date_of_birth || '-'}</div>
+              <div><span className="text-gray-500">Nationality:</span> {formData.nationality || '-'}</div>
+              <div><span className="text-gray-500">State of Origin:</span> {formData.state_of_origin || '-'}</div>
+              <div><span className="text-gray-500">LGA:</span> {formData.lga || '-'}</div>
               <div><span className="text-gray-500">Gender:</span> {formData.gender || '-'}</div>
               <div><span className="text-gray-500">Phone:</span> {formData.phone_number || '-'}</div>
               <div><span className="text-gray-500">Email (Login):</span> {formData.personal_email || '-'}</div>
