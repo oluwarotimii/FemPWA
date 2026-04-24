@@ -140,6 +140,47 @@ const parseMultiValue = (value: unknown): string[] => {
 
 const formatMultiValue = (value: unknown): string => parseMultiValue(value).join(', ');
 
+const normalizeDateInputValue = (value: unknown): string => {
+  if (!value) return '';
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+
+    // Preserve date-only values as-is for <input type="date">.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().split('T')[0];
+  }
+
+  return '';
+};
+
+const resolveProfileImageUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api';
+  const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+
+  return `${baseUrl}${normalizedPath}`;
+};
+
 const nigerianBanks = [
   'Access Bank',
   'Citibank Nigeria',
@@ -408,9 +449,7 @@ export function StaffDetailsFormScreen() {
 
         // Load existing profile picture if available
         if (staff.profile_picture) {
-          const imageUrl = staff.profile_picture.startsWith('http')
-            ? staff.profile_picture
-            : `${import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api'}${staff.profile_picture}`;
+          const imageUrl = resolveProfileImageUrl(staff.profile_picture);
           setProfileImagePreview(imageUrl);
           console.log('[StaffDetailsForm] Set profile image preview:', imageUrl);
         }
@@ -460,7 +499,7 @@ export function StaffDetailsFormScreen() {
             personal_email: staff.personal_email || '',
             phone_number: staff.phone_number || '',
             alternate_phone_number: staff.alternate_phone_number || '',
-            date_of_birth: staff.date_of_birth || '',
+            date_of_birth: normalizeDateInputValue(staff.date_of_birth),
             nationality: staff.nationality || 'Nigerian',
             state_of_origin: staff.state_of_origin || '',
             lga: staff.lga || '',
