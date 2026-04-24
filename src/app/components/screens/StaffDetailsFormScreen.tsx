@@ -448,8 +448,9 @@ export function StaffDetailsFormScreen() {
         setExistingStaffData(staff);
 
         // Load existing profile picture if available
-        if (staff.profile_picture) {
-          const imageUrl = resolveProfileImageUrl(staff.profile_picture);
+        const existingProfileImage = resolveProfileImageUrl(staff.profile_picture || user?.avatar);
+        if (existingProfileImage) {
+          const imageUrl = existingProfileImage;
           setProfileImagePreview(imageUrl);
           console.log('[StaffDetailsForm] Set profile image preview:', imageUrl);
         }
@@ -492,7 +493,7 @@ export function StaffDetailsFormScreen() {
             designation: staff.designation || '',
             department_id: staff.department_id?.toString() || '',
             branch_id: staff.branch_id?.toString() || '',
-            joining_date: staff.joining_date || new Date().toISOString().split('T')[0],
+            joining_date: normalizeDateInputValue(staff.joining_date) || new Date().toISOString().split('T')[0],
             employment_type: staff.employment_type || 'permanent',
             work_mode: staff.work_mode || 'onsite',
             work_email: staff.work_email || '',
