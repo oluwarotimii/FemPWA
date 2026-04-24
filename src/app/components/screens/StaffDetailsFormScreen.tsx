@@ -88,6 +88,92 @@ interface Location {
   name: string;
 }
 
+type MultiValueField = 'languages_known' | 'primary_skills' | 'professional_certifications' | 'allergies';
+
+const normalizeMultiValues = (items: string[]): string[] => {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const item of items) {
+    const cleaned = item.trim();
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      normalized.push(cleaned);
+    }
+  }
+
+  return normalized;
+};
+
+const parseMultiValue = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return normalizeMultiValues(value.map((item) => String(item)));
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return normalizeMultiValues(parsed.map((item) => String(item)));
+      }
+    } catch {
+      // Fall back to comma-separated parsing below.
+    }
+
+    return normalizeMultiValues(trimmed.split(','));
+  }
+
+  return [];
+};
+
+const formatMultiValue = (value: unknown): string => parseMultiValue(value).join(', ');
+
+const nigerianBanks = [
+  'Access Bank',
+  'Citibank Nigeria',
+  'Ecobank Nigeria',
+  'Fidelity Bank',
+  'First Bank of Nigeria',
+  'First City Monument Bank (FCMB)',
+  'Globus Bank',
+  'Guaranty Trust Bank (GTBank)',
+  'Heritage Bank',
+  'Keystone Bank',
+  'Lotus Bank',
+  'Polaris Bank',
+  'Providus Bank',
+  'Stanbic IBTC Bank',
+  'Standard Chartered Bank Nigeria',
+  'Sterling Bank',
+  'SunTrust Bank Nigeria',
+  'Titan Trust Bank',
+  'Union Bank of Nigeria',
+  'United Bank for Africa (UBA)',
+  'Unity Bank',
+  'Wema Bank',
+  'Zenith Bank',
+  'Opay',
+  'Kuda Bank',
+  'PalmPay',
+  'VFD Microfinance Bank',
+  'Rubies Microfinance Bank',
+  'Sparkle Microfinance Bank',
+  'AB Microfinance Bank',
+  'Accion Microfinance Bank',
+  'Addosser Microfinance Bank',
+  'BoI Microfinance Bank',
+  'Eyowo Microfinance Bank',
+  'FairMoney Microfinance Bank',
+  'Fina Trust Microfinance Bank',
+  'Kredi Money Microfinance Bank',
+  'Page Financials Microfinance Bank',
+];
+
 export function StaffDetailsFormScreen() {
   const navigate = useNavigate();
   const { user, updateUser, isLoading } = useAuth();
@@ -156,6 +242,12 @@ export function StaffDetailsFormScreen() {
     gratuity_applicable: true,
     assigned_location_id: '',
     dependents: [],
+  });
+  const [multiValueDrafts, setMultiValueDrafts] = useState<Record<MultiValueField, string>>({
+    languages_known: '',
+    primary_skills: '',
+    professional_certifications: '',
+    allergies: '',
   });
 
   const totalSteps = 6; // Reduced from 7 - removed Employment Details step (now set by HR)
@@ -251,9 +343,9 @@ export function StaffDetailsFormScreen() {
       const effectiveUserId = userId || user?.id;
       if (!effectiveUserId) return;
 
-      // Get staff data which includes invitation info
-      // Note: New users may not have a staff record yet - that's OK
-      const response = await apiClient.get(`/staff/${effectiveUserId}`);
+      // Always resolve current user's staff data from authenticated identity.
+      // This avoids collisions between users.id and staff.id values.
+      const response = await apiClient.get('/staff/me');
 
       if (response.status === 404) {
         // No staff record yet - this is normal for new users
@@ -311,7 +403,7 @@ export function StaffDetailsFormScreen() {
 
           // Pre-fill with existing data (department/branch from invitation or user selection)
           const prefilledFormData = {
-            employee_id: staff.employee_id || `EMP${effectiveUserId}`,
+            employee_id: staff.employee_id || `EMP${staff.user_id || effectiveUserId}`,
             designation: staff.designation || '',
             department_id: staff.department_id?.toString() || '',
             branch_id: staff.branch_id?.toString() || '',
@@ -338,12 +430,12 @@ export function StaffDetailsFormScreen() {
             university_school: staff.university_school || '',
             year_of_graduation: staff.year_of_graduation || '',
             course_of_study: staff.course_of_study || '',
-            professional_certifications: staff.professional_certifications || '',
-            languages_known: staff.languages_known || '',
+            professional_certifications: formatMultiValue(staff.certifications_json ?? staff.professional_certifications),
+            languages_known: formatMultiValue(staff.languages_known),
             experience_years: staff.experience_years || '',
             previous_company: staff.previous_company || '',
-            primary_skills: staff.primary_skills || '',
-            allergies: staff.allergies || '',
+            primary_skills: formatMultiValue(staff.primary_skills),
+            allergies: formatMultiValue(staff.allergies),
             special_medical_notes: staff.special_medical_notes || '',
             notice_period_days: staff.notice_period_days?.toString() || '30',
             weekly_working_hours: staff.weekly_working_hours?.toString() || '40',
@@ -375,6 +467,90 @@ export function StaffDetailsFormScreen() {
 
   const handleInputChange = (field: keyof StaffDetails, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const setMultiValueField = (field: MultiValueField, values: string[]) => {
+    handleInputChange(field, values.join(', '));
+  };
+
+  const addMultiValueItem = (field: MultiValueField, rawValue?: string) => {
+    const candidate = (rawValue ?? multiValueDrafts[field]).trim().replace(/,+$/, '');
+    if (!candidate) return;
+
+    const existing = parseMultiValue(formData[field]);
+    const incomingItems = normalizeMultiValues(candidate.split(','));
+    if (incomingItems.length === 0) {
+      setMultiValueDrafts((prev) => ({ ...prev, [field]: '' }));
+      return;
+    }
+
+    const merged = [...existing];
+    for (const item of incomingItems) {
+      if (!merged.some((existingItem) => existingItem.toLowerCase() === item.toLowerCase())) {
+        merged.push(item);
+      }
+    }
+
+    if (merged.length === existing.length) {
+      setMultiValueDrafts((prev) => ({ ...prev, [field]: '' }));
+      return;
+    }
+
+    setMultiValueField(field, merged);
+    setMultiValueDrafts((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const removeMultiValueItem = (field: MultiValueField, itemToRemove: string) => {
+    const updated = parseMultiValue(formData[field]).filter((item) => item !== itemToRemove);
+    setMultiValueField(field, updated);
+  };
+
+  const handleMultiValueKeyDown = (field: MultiValueField, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addMultiValueItem(field);
+    }
+  };
+
+  const renderMultiValueInput = (field: MultiValueField, placeholder: string, helperText?: string) => {
+    const values = parseMultiValue(formData[field]);
+
+    return (
+      <div className="mt-1 space-y-2">
+        <div className="min-h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            {values.map((item) => (
+              <span
+                key={`${field}-${item}`}
+                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+              >
+                {item}
+                <button
+                  type="button"
+                  className="text-slate-500 hover:text-slate-700"
+                  onClick={() => removeMultiValueItem(field, item)}
+                  aria-label={`Remove ${item}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <Input
+              id={field}
+              value={multiValueDrafts[field]}
+              onChange={(e) => setMultiValueDrafts((prev) => ({ ...prev, [field]: e.target.value }))}
+              onKeyDown={(e) => handleMultiValueKeyDown(field, e)}
+              onBlur={() => addMultiValueItem(field)}
+              placeholder={placeholder}
+              className="h-7 min-w-[180px] flex-1 border-0 p-0 shadow-none focus-visible:ring-0"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">
+          {helperText || 'Press Enter or comma after each item.'}
+        </p>
+      </div>
+    );
   };
 
   // Image upload handlers
@@ -497,14 +673,21 @@ export function StaffDetailsFormScreen() {
   const handleSubmit = async () => {
     try {
       setSaving(true);
-      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
-      if (!userId) {
+      const storedUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      const currentUserId = user?.id ?? (storedUserId ? Number(storedUserId) : NaN);
+
+      if (!currentUserId || Number.isNaN(currentUserId)) {
         toast.error('User ID not found');
         return;
       }
 
+      const primarySkillsList = parseMultiValue(formData.primary_skills);
+      const certificationsList = parseMultiValue(formData.professional_certifications);
+      const languagesList = parseMultiValue(formData.languages_known);
+      const allergiesList = parseMultiValue(formData.allergies);
+
       const payload = {
-        employee_id: formData.employee_id || `EMP${userId}`,
+        employee_id: formData.employee_id || `EMP${currentUserId}`,
         designation: formData.designation,
         // Don't send department_id, branch_id, employment_type, work_mode - they're set by HR
         joining_date: formData.joining_date,
@@ -529,12 +712,13 @@ export function StaffDetailsFormScreen() {
         university_school: formData.university_school,
         year_of_graduation: formData.year_of_graduation,
         course_of_study: formData.course_of_study || '',
-        professional_certifications: formData.professional_certifications,
-        languages_known: formData.languages_known,
+        professional_certifications: certificationsList,
+        certifications_json: certificationsList,
+        languages_known: languagesList,
         experience_years: formData.experience_years,
         previous_company: formData.previous_company,
-        primary_skills: formData.primary_skills,
-        allergies: formData.allergies,
+        primary_skills: primarySkillsList,
+        allergies: allergiesList,
         special_medical_notes: formData.special_medical_notes,
         notice_period_days: parseInt(formData.notice_period_days) || 30,
         weekly_working_hours: parseFloat(formData.weekly_working_hours) || 40,
@@ -551,22 +735,19 @@ export function StaffDetailsFormScreen() {
       // userId already declared at start of handleSubmit
       console.log('========================================');
       console.log('[Frontend] Submitting staff details');
-      console.log('[Frontend] userId from localStorage:', userId);
-      console.log('[Frontend] userId type:', typeof userId);
-      console.log('[Frontend] userId as number:', Number(userId));
-      console.log('[Frontend] Request URL:', `/staff/${userId}`);
+      console.log('[Frontend] authenticated userId:', currentUserId);
+      console.log('[Frontend] Request URL:', `/staff/${currentUserId}`);
       console.log('[Frontend] Payload keys:', Object.keys(payload));
       console.log('[Frontend] Payload:', JSON.stringify(payload, null, 2));
       console.log('========================================');
 
-      const response = await apiClient.put(`/staff/${userId}`, payload);
+      const response = await apiClient.put(`/staff/${currentUserId}`, payload);
 
       if (response.data?.success) {
         // Upload profile image if provided
         let profileImageUrl = null;
         if (profileImage) {
-          const userId_to_use = localStorage.getItem('userId') || sessionStorage.getItem('userId') || user?.id;
-          profileImageUrl = await uploadProfileImage(userId_to_use?.toString() || '');
+          profileImageUrl = await uploadProfileImage(currentUserId);
         }
 
         toast.success('Profile updated successfully!');
@@ -705,8 +886,6 @@ export function StaffDetailsFormScreen() {
             <SelectContent>
               <SelectItem value="male">Male</SelectItem>
               <SelectItem value="female">Female</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-              <SelectItem value="prefer_not_to_say">Prefer not to say</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -750,7 +929,7 @@ export function StaffDetailsFormScreen() {
           <Input
             id="phone_number"
             type="tel"
-            placeholder="+254 7XX XXX XXX"
+            placeholder="+234 8XX XXX XXXX"
             value={formData.phone_number}
             onChange={(e) => handleInputChange('phone_number', e.target.value)}
             className="mt-1"
@@ -762,7 +941,7 @@ export function StaffDetailsFormScreen() {
           <Input
             id="alternate_phone_number"
             type="tel"
-            placeholder="+254 7XX XXX XXX"
+            placeholder="+234 8XX XXX XXXX"
             value={formData.alternate_phone_number}
             onChange={(e) => handleInputChange('alternate_phone_number', e.target.value)}
             className="mt-1"
@@ -771,13 +950,7 @@ export function StaffDetailsFormScreen() {
 
         <div>
           <Label htmlFor="allergies">Allergies (if any)</Label>
-          <Input
-            id="allergies"
-            placeholder="List any allergies"
-            value={formData.allergies}
-            onChange={(e) => handleInputChange('allergies', e.target.value)}
-            className="mt-1"
-          />
+          {renderMultiValueInput('allergies', 'Type an allergy and press Enter')}
         </div>
 
         <div className="md:col-span-2">
@@ -849,7 +1022,7 @@ export function StaffDetailsFormScreen() {
               <Input
                 id="emergency_contact_phone"
                 type="tel"
-                placeholder="+254 7XX XXX XXX"
+                placeholder="+234 8XX XXX XXXX"
                 value={formData.emergency_contact_phone}
                 onChange={(e) => handleInputChange('emergency_contact_phone', e.target.value)}
                 className="mt-1"
@@ -887,13 +1060,19 @@ export function StaffDetailsFormScreen() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="bank_name">Bank Name *</Label>
-          <Input
-            id="bank_name"
-            placeholder="e.g., KCB Bank"
-            value={formData.bank_name}
-            onChange={(e) => handleInputChange('bank_name', e.target.value)}
-            className="mt-1"
-          />
+          <Select value={formData.bank_name} onValueChange={(value) => handleInputChange('bank_name', value)}>
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Select bank" />
+            </SelectTrigger>
+            <SelectContent>
+              {formData.bank_name && !nigerianBanks.includes(formData.bank_name) && (
+                <SelectItem value={formData.bank_name}>{formData.bank_name}</SelectItem>
+              )}
+              {nigerianBanks.map((bank) => (
+                <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -971,37 +1150,17 @@ export function StaffDetailsFormScreen() {
 
         <div>
           <Label htmlFor="languages_known">Languages Known</Label>
-          <Input
-            id="languages_known"
-            placeholder="English, Yoruba, Hausa"
-            value={formData.languages_known}
-            onChange={(e) => handleInputChange('languages_known', e.target.value)}
-            className="mt-1"
-          />
+          {renderMultiValueInput('languages_known', 'Type a language and press Enter')}
         </div>
 
         <div className="md:col-span-2">
           <Label htmlFor="primary_skills">Primary Skills *</Label>
-          <Textarea
-            id="primary_skills"
-            placeholder="List your primary skills (comma separated)"
-            value={formData.primary_skills}
-            onChange={(e) => handleInputChange('primary_skills', e.target.value)}
-            className="mt-1"
-            rows={3}
-          />
+          {renderMultiValueInput('primary_skills', 'Type a skill and press Enter')}
         </div>
 
         <div className="md:col-span-2">
           <Label htmlFor="professional_certifications">Professional Certifications</Label>
-          <Textarea
-            id="professional_certifications"
-            placeholder="List any professional certifications"
-            value={formData.professional_certifications}
-            onChange={(e) => handleInputChange('professional_certifications', e.target.value)}
-            className="mt-1"
-            rows={3}
-          />
+          {renderMultiValueInput('professional_certifications', 'Type a certification and press Enter')}
         </div>
       </div>
     </div>
@@ -1264,7 +1423,6 @@ export function StaffDetailsFormScreen() {
                       <SelectContent>
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1274,7 +1432,7 @@ export function StaffDetailsFormScreen() {
                     <Input
                       id={`dep-phone-${dependent.id}`}
                       type="tel"
-                      placeholder="+254 7XX XXX XXX"
+                      placeholder="+234 8XX XXX XXXX"
                       value={dependent.phone_number}
                       onChange={(e) => handleUpdateDependent(dependent.id, 'phone_number', e.target.value)}
                       className="mt-1"
@@ -1387,9 +1545,9 @@ export function StaffDetailsFormScreen() {
               <div><span className="text-gray-500">Qualification:</span> {formData.highest_qualification || '-'}</div>
               <div><span className="text-gray-500">School:</span> {formData.university_school || '-'}</div>
               <div><span className="text-gray-500">Year:</span> {formData.year_of_graduation || '-'}</div>
-              <div><span className="text-gray-500">Languages:</span> {formData.languages_known || '-'}</div>
-              <div className="col-span-2"><span className="text-gray-500">Skills:</span> {formData.primary_skills || '-'}</div>
-              <div className="col-span-2"><span className="text-gray-500">Certifications:</span> {formData.professional_certifications || '-'}</div>
+              <div><span className="text-gray-500">Languages:</span> {formatMultiValue(formData.languages_known) || '-'}</div>
+              <div className="col-span-2"><span className="text-gray-500">Skills:</span> {formatMultiValue(formData.primary_skills) || '-'}</div>
+              <div className="col-span-2"><span className="text-gray-500">Certifications:</span> {formatMultiValue(formData.professional_certifications) || '-'}</div>
             </div>
           </CardContent>
         </Card>
@@ -1427,7 +1585,7 @@ export function StaffDetailsFormScreen() {
               Medical & Other
             </h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div><span className="text-gray-500">Allergies:</span> {formData.allergies || '-'}</div>
+              <div><span className="text-gray-500">Allergies:</span> {formatMultiValue(formData.allergies) || '-'}</div>
               <div><span className="text-gray-500">Medical Notes:</span> {formData.special_medical_notes || '-'}</div>
               <div><span className="text-gray-500">Experience:</span> {formData.experience_years ? `${formData.experience_years} years` : '-'}</div>
               <div><span className="text-gray-500">Previous Company:</span> {formData.previous_company || '-'}</div>

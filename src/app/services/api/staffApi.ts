@@ -30,9 +30,11 @@ interface StaffDetails {
 }
 
 interface UpdateStaffRequest {
-  phone?: string;
-  address?: string;
-  emergency_contact?: string;
+  phone_number?: string;
+  current_address?: string;
+  emergency_contact_phone?: string;
+  date_of_birth?: string;
+  gender?: string;
 }
 
 export const staffApi = {
@@ -51,8 +53,8 @@ export const staffApi = {
 
 
   // Update staff profile information
-  updateStaffProfile: async (id: number, request: UpdateStaffRequest): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
-    const response = await apiClient.put(`/staff/${id}`, request);
+  updateStaffProfile: async (userId: number, request: UpdateStaffRequest): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
+    const response = await apiClient.put(`/staff/${userId}`, request);
     return response.data;
   },
 
