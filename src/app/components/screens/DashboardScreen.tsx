@@ -10,6 +10,30 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
 import { calculateDistance } from '@/app/utils/geofencing';
 
+const getGeolocationErrorMessage = (error: { code?: number } | null) => {
+  if (!error) return 'Unable to get your location. Please try again.';
+
+  if (error.code === 1) {
+    return 'Location permission denied. Please allow location access in your browser or app settings and try again.';
+  }
+
+  if (error.code === 2) {
+    return 'Unable to determine your location right now. Please move to an area with GPS signal and try again.';
+  }
+
+  if (error.code === 3) {
+    return 'Location request timed out. Please try again.';
+  }
+
+  return 'Unable to get your location. Please try again.';
+};
+
+const isLocationPermissionError = (value: unknown) => {
+  if (typeof value !== 'string') return false;
+  const normalized = value.toLowerCase();
+  return normalized.includes('permission denied') || normalized.includes('location permission required');
+};
+
 export function DashboardScreen() {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -28,6 +52,7 @@ export function DashboardScreen() {
   const [isWithinRange, setIsWithinRange] = useState<boolean | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   // Loading modal states
   const [showLoadingModal, setShowLoadingModal] = useState(false);
@@ -188,6 +213,7 @@ export function DashboardScreen() {
   useEffect(() => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported');
+      setLocationPermissionDenied(false);
       return;
     }
 
@@ -200,22 +226,24 @@ export function DashboardScreen() {
         };
         setCurrentLocation(coords);
         setLocationError(null);
+        setLocationPermissionDenied(false);
         setIsLocating(false);
       },
       (error) => {
         console.error('Geolocation error:', error);
-        let errorMsg = 'Check GPS permissions';
-        if (error.code === 1) errorMsg = 'GPS Permission Denied';
-        else if (error.code === 2) errorMsg = 'GPS Signal Lost';
-        else if (error.code === 3) {
-          errorMsg = 'GPS Timeout (Standard Mode)';
+        const errorMsg = getGeolocationErrorMessage(error);
+        setLocationPermissionDenied(error.code === 1);
+        if (error.code === 3) {
           // If high accuracy times out, try standard accuracy
           navigator.geolocation.getCurrentPosition(
             (pos) => {
               setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
               setLocationError(null);
+              setLocationPermissionDenied(false);
             },
-            null,
+            (fallbackError) => {
+              console.error('Fallback geolocation error:', fallbackError);
+            },
             { enableHighAccuracy: false, timeout: 5000 }
           );
         }
@@ -273,12 +301,14 @@ export function DashboardScreen() {
       // 1. If we have a fresh location from the watch effect (< 1 minute old), use it immediately!
       if (currentLocation && !locationError) {
         console.log('Using fresh watched location for instant check-in');
+        setLocationPermissionDenied(false);
         resolve(currentLocation);
         return;
       }
 
       if (!navigator.geolocation) {
         console.warn('Geolocation is not supported by this browser.');
+        setLocationPermissionDenied(false);
         resolve(null);
         return;
       }
@@ -286,6 +316,7 @@ export function DashboardScreen() {
       console.log('Fetching fresh location for check-in...');
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          setLocationPermissionDenied(false);
           resolve({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -293,6 +324,7 @@ export function DashboardScreen() {
         },
         (error) => {
           console.error('Geolocation error:', error);
+          setLocationPermissionDenied(error.code === 1);
           // 2. Fallback to standard accuracy if high accuracy fails/timeouts
           if (error.code === 3 || error.code === 2) {
             console.log('Falling back to standard accuracy...');
@@ -302,6 +334,9 @@ export function DashboardScreen() {
               { enableHighAccuracy: false, timeout: 5000 }
             );
           } else {
+            if (error.code === 1) {
+              setLocationError(getGeolocationErrorMessage(error));
+            }
             resolve(null);
           }
         },
@@ -319,7 +354,16 @@ export function DashboardScreen() {
       const coords = await getCurrentLocation();
       
       if (!coords) {
-        throw new Error('Unable to get your location. Please enable GPS and try again.');
+        if (locationPermissionDenied || isLocationPermissionError(locationError)) {
+          const permissionMessage = locationError || 'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
+          toast.error('Location Permission Required', {
+            description: permissionMessage,
+            duration: 7000
+          });
+          return;
+        }
+
+        throw new Error(locationError || 'Unable to get your location. Please enable GPS and try again.');
       }
 
       setLoadingStage('submitting');
@@ -398,6 +442,11 @@ export function DashboardScreen() {
             description: 'Attendance for this date has been locked by your branch. Please contact HR.',
             duration: 6000
           });
+        } else if (msg.toLowerCase().includes('location permission')) {
+          toast.error('Location Permission Required', {
+            description: msg,
+            duration: 7000
+          });
         } else if (msg.includes('Location verification failed') || msg.includes('location')) {
           toast.error('Location Verification Failed', {
             description: 'You are not within the allowed check-in location. Please move closer to your assigned location and try again.',
@@ -442,6 +491,16 @@ export function DashboardScreen() {
           description: 'No attendance record found. Please check in first before checking out.',
           duration: 5000
         });
+      } else if (isLocationPermissionError(error.message) || error.response?.data?.message?.toLowerCase?.().includes('location permission')) {
+        toast.error('Location Permission Required', {
+          description: error.response?.data?.message || error.message || 'Please allow location access and try again.',
+          duration: 7000
+        });
+      } else if (error.message?.toLowerCase().includes('location') || error.message?.includes('GPS')) {
+        toast.error('Location Error', {
+          description: error.message || 'Unable to get your location. Please ensure GPS is enabled.',
+          duration: 6000
+        });
       } else if (error.response?.status === 401 || error.response?.status === 403) {
         toast.error('Authentication Error', {
           description: 'Your session may have expired. Please log in again.',
@@ -450,11 +509,6 @@ export function DashboardScreen() {
       } else if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || !error.response) {
         toast.error('Network Error', {
           description: 'Unable to connect to server. Please check your internet connection and try again.',
-          duration: 6000
-        });
-      } else if (error.message?.includes('location') || error.message?.includes('GPS')) {
-        toast.error('Location Error', {
-          description: error.message || 'Unable to get your location. Please ensure GPS is enabled.',
           duration: 6000
         });
       } else {
