@@ -168,6 +168,32 @@ export function ProfileScreen() {
       .join(' ');
   };
 
+  const formatMultiValue = (value: unknown) => {
+    if (Array.isArray(value)) {
+      const items = value.map((item) => String(item).trim()).filter(Boolean);
+      return items.length ? items.join(', ') : 'N/A';
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return 'N/A';
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          const items = parsed.map((item) => String(item).trim()).filter(Boolean);
+          return items.length ? items.join(', ') : 'N/A';
+        }
+      } catch {
+        // Not JSON, treat as plain text.
+      }
+
+      return trimmed;
+    }
+
+    return 'N/A';
+  };
+
   if (loading) {
     return (
       <div className="p-4 pb-20 max-w-4xl mx-auto space-y-6">
@@ -389,14 +415,14 @@ export function ProfileScreen() {
             <InfoRow label="Highest Qualification" value={formatStatus(staffDetails?.highest_qualification)} />
             <InfoRow label="University / School" value={staffDetails?.university_school || 'N/A'} />
             <InfoRow label="Year of Graduation" value={staffDetails?.year_of_graduation || 'N/A'} />
-            <InfoRow label="Languages Known" value={staffDetails?.languages_known || 'N/A'} />
+            <InfoRow label="Languages Known" value={formatMultiValue(staffDetails?.languages_known)} />
             <div className="md:col-span-2">
               <div className="text-xs text-gray-500 mb-1">Primary Skills</div>
-              <div className="text-sm text-gray-900">{staffDetails?.primary_skills || 'Not provided'}</div>
+              <div className="text-sm text-gray-900">{formatMultiValue(staffDetails?.primary_skills)}</div>
             </div>
             <div className="md:col-span-2">
               <div className="text-xs text-gray-500 mb-1">Professional Certifications</div>
-              <div className="text-sm text-gray-900">{staffDetails?.professional_certifications || 'Not provided'}</div>
+              <div className="text-sm text-gray-900">{formatMultiValue(staffDetails?.professional_certifications)}</div>
             </div>
           </div>
         </CardContent>

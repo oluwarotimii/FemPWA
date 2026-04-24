@@ -78,10 +78,12 @@ export function FillPersonalDetailsScreen() {
       if (staffRecord) {
         // Update existing staff record
         console.log('[FillPersonalDetails] Updating existing staff record');
-        response = await staffApi.updateStaffProfile(staffRecord.id, {
-          phone: formData.phone,
-          address: formData.address,
-          emergency_contact: formData.emergency_contact
+        response = await staffApi.updateStaffProfile(user.id, {
+          phone_number: formData.phone,
+          current_address: formData.address,
+          emergency_contact_phone: formData.emergency_contact,
+          date_of_birth: formData.date_of_birth,
+          gender: formData.gender
         });
       } else {
         // Create new staff record - use POST instead
@@ -89,6 +91,8 @@ export function FillPersonalDetailsScreen() {
         response = await staffApi.createStaffProfile({
           user_id: user.id,
           phone_number: formData.phone,
+          current_address: formData.address,
+          emergency_contact_phone: formData.emergency_contact,
           personal_email: user.email,
           date_of_birth: formData.date_of_birth,
           gender: formData.gender
@@ -210,7 +214,6 @@ export function FillPersonalDetailsScreen() {
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
                     <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

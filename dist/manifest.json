@@ -1,13 +1,18 @@
 {
-  "name": "Femtech Human Resource",
-  "short_name": "Femtech HR",
-  "description": "Employee self-service portal for attendance, leave management, and HR tasks",
+  "name": "Femtech TMS",
+  "short_name": "Femtech TMS",
+  "description": "Femtech TMS - Employee self-service portal for attendance, leave management, and HR tasks",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1A2B3C",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "/femtech.png",
+      "sizes": "any",
+      "type": "image/png"
+    },
     {
       "src": "/icons/icon-192x192.svg",
       "sizes": "192x192",
