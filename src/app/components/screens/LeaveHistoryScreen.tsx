@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/app/components/ui/select';
 import { leaveApi, type LeaveRequest, type LeaveType } from '@/app/services/api';
+import { leavePolicyApi } from '@/app/services/api/leavePolicyApi';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { calculateLeaveDays } from '@/app/utils/leaveDays';
 
 export function LeaveHistoryScreen() {
   const navigate = useNavigate();
@@ -42,6 +44,7 @@ export function LeaveHistoryScreen() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [processingAction, setProcessingAction] = useState(false);
   const [activeTab, setActiveTab] = useState<'my-history' | 'all-history'>('my-history');
+  const [excludeSundaysFromLeave, setExcludeSundaysFromLeave] = useState(false);
 
   // Users with leave:update or leave:read permission can manage others' requests
   const canViewAll = hasPermission('leave:update') || hasPermission('leave:read');
@@ -73,6 +76,13 @@ export function LeaveHistoryScreen() {
       // Fetch leave types
       const typesResponse = await leaveApi.getLeaveTypes();
       setLeaveTypes(typesResponse.data.leaveTypes);
+
+      try {
+        const policyResponse = await leavePolicyApi.getLeavePolicy();
+        setExcludeSundaysFromLeave(!!policyResponse.data.settings.exclude_sundays_from_leave);
+      } catch (policyError) {
+        console.log('Leave policy not available, using default leave day counting');
+      }
     } catch (error) {
       console.error('Failed to fetch leave data:', error);
       toast.error('Failed to load leave data');
@@ -172,11 +182,7 @@ export function LeaveHistoryScreen() {
   };
 
   const calculateDays = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
+    return calculateLeaveDays(startDate, endDate, excludeSundaysFromLeave);
   };
 
   // Group requests by year and month
