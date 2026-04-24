@@ -14,7 +14,9 @@ import {
 } from '@/app/components/ui/select';
 import { toast } from 'sonner';
 import { leaveApi, type LeaveType, type LeaveBalance } from '@/app/services/api';
+import { leavePolicyApi } from '@/app/services/api/leavePolicyApi';
 import { Badge } from '@/app/components/ui/badge';
+import { calculateLeaveDays } from '@/app/utils/leaveDays';
 
 export function NewLeaveRequestScreen() {
   const navigate = useNavigate();
@@ -27,6 +29,7 @@ export function NewLeaveRequestScreen() {
   const [document, setDocument] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [daysRequested, setDaysRequested] = useState(0);
+  const [excludeSundaysFromLeave, setExcludeSundaysFromLeave] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,6 +43,13 @@ export function NewLeaveRequestScreen() {
         } catch (error) {
           console.log('Leave balances not available');
         }
+
+        try {
+          const policyResponse = await leavePolicyApi.getLeavePolicy();
+          setExcludeSundaysFromLeave(!!policyResponse.data.settings.exclude_sundays_from_leave);
+        } catch (policyError) {
+          console.log('Leave policy not available, using default leave day counting');
+        }
       } catch (error) {
         console.error('Failed to fetch leave types:', error);
         toast.error('Failed to load leave types');
@@ -51,15 +61,11 @@ export function NewLeaveRequestScreen() {
 
   useEffect(() => {
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      setDaysRequested(diffDays);
+      setDaysRequested(calculateLeaveDays(startDate, endDate, excludeSundaysFromLeave));
     } else {
       setDaysRequested(0);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, excludeSundaysFromLeave]);
 
   const getAvailableDays = (leaveTypeId: number) => {
     const balance = leaveBalances.find(b => b.leave_type_id === leaveTypeId);

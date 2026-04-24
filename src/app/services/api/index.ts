@@ -9,4 +9,5 @@ export { formsApi } from './formsApi';
 export { performanceApi } from './performanceApi';
 export { targetsApi } from './targetsApi';
 export { holidayApi } from './holidayApi';
+export { leavePolicyApi } from './leavePolicyApi';
 export { default as apiClient } from './apiClient';

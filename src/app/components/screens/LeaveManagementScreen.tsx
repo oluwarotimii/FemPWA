@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, Briefcase, Heart, Users, CheckCircle, XCircle, Clock, AlertCircle, History, FileText, ExternalLink } from 'lucide-react';
+import { Plus, Calendar, Briefcase, Heart, Users, CheckCircle, XCircle, Clock, AlertCircle, FileText, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { leaveApi, type LeaveType, type LeaveBalance, type LeaveRequest } from '@/app/services/api';
+import { leavePolicyApi } from '@/app/services/api/leavePolicyApi';
 import { motion } from 'motion/react';
 import { Button } from '@/app/components/ui/button';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -17,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { calculateLeaveDays } from '@/app/utils/leaveDays';
 
 export function LeaveManagementScreen() {
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ export function LeaveManagementScreen() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [processingAction, setProcessingAction] = useState(false);
   const [activeTab, setActiveTab] = useState<'my-leave'>('my-leave');
+  const [excludeSundaysFromLeave, setExcludeSundaysFromLeave] = useState(false);
 
   // Users with leave:update or leave:read permission can manage others' requests
   // NOTE: Manage Leave section commented out - only available through dashboard for authorized users
@@ -66,13 +69,26 @@ export function LeaveManagementScreen() {
       const typesResponse = await leaveApi.getLeaveTypes();
       setLeaveTypes(typesResponse.data.leaveTypes);
 
+      let policyExcludeSundays = false;
+      try {
+        const policyResponse = await leavePolicyApi.getLeavePolicy();
+        policyExcludeSundays = !!policyResponse.data.settings.exclude_sundays_from_leave;
+        setExcludeSundaysFromLeave(policyExcludeSundays);
+      } catch (policyError) {
+        console.log('Leave policy not available, using default leave day counting');
+      }
+
       // Fetch leave balances (personal)
       try {
         const balancesResponse = await leaveApi.getLeaveBalances();
         setLeaveBalances(balancesResponse.data.balances);
       } catch (balanceError) {
         console.log('Leave balances not available, calculating from leave types');
-        calculateLeaveBalancesFromTypes(typesResponse.data.leaveTypes, requestsResponse.data.leaveRequests);
+        calculateLeaveBalancesFromTypes(
+          typesResponse.data.leaveTypes,
+          requestsResponse.data.leaveRequests,
+          policyExcludeSundays
+        );
       }
     } catch (error) {
       console.error('Failed to fetch leave data:', error);
@@ -86,33 +102,25 @@ export function LeaveManagementScreen() {
   };
 
   // Fallback: Calculate leave balances based on leave types and used days
-  const calculateLeaveBalancesFromTypes = (types: LeaveType[], requests: LeaveRequest[]) => {
+  const calculateLeaveBalancesFromTypes = (types: LeaveType[], requests: LeaveRequest[], excludeSundays = false) => {
     const balances = types.map(type => {
       const usedDays = requests
-        .filter(req =>
+          .filter(req =>
           req.leave_type_id === type.id &&
           req.status.toLowerCase() === 'approved' &&
           new Date(req.start_date).getFullYear() === new Date().getFullYear()
         )
         .reduce((sum, req) => {
-          const start = new Date(req.start_date);
-          const end = new Date(req.end_date);
-          const diffTime = Math.abs(end.getTime() - start.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          return sum + diffDays;
+          return sum + calculateLeaveDays(req.start_date, req.end_date, excludeSundays);
         }, 0);
 
       const pendingDays = requests
-        .filter(req =>
+          .filter(req =>
           req.leave_type_id === type.id &&
           req.status.toLowerCase() === 'submitted'
         )
         .reduce((sum, req) => {
-          const start = new Date(req.start_date);
-          const end = new Date(req.end_date);
-          const diffTime = Math.abs(end.getTime() - start.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          return sum + diffDays;
+          return sum + calculateLeaveDays(req.start_date, req.end_date, excludeSundays);
         }, 0);
 
       return {
@@ -353,6 +361,7 @@ export function LeaveManagementScreen() {
                 key={request.id}
                 request={request}
                 leaveTypes={leaveTypes}
+                excludeSundaysFromLeave={excludeSundaysFromLeave}
                 getStatusColor={getStatusColor}
                 getStatusLabel={getStatusLabel}
                 getStatusIcon={getStatusIcon}
@@ -376,6 +385,7 @@ export function LeaveManagementScreen() {
                   key={request.id}
                   request={request}
                   leaveTypes={leaveTypes}
+                  excludeSundaysFromLeave={excludeSundaysFromLeave}
                   getStatusColor={getStatusColor}
                   getStatusLabel={getStatusLabel}
                   getStatusIcon={getStatusIcon}
@@ -404,6 +414,7 @@ export function LeaveManagementScreen() {
                   key={request.id}
                   request={request}
                   leaveTypes={leaveTypes}
+                  excludeSundaysFromLeave={excludeSundaysFromLeave}
                   getStatusColor={getStatusColor}
                   getStatusLabel={getStatusLabel}
                   getStatusIcon={getStatusIcon}
@@ -432,6 +443,7 @@ export function LeaveManagementScreen() {
                   key={request.id}
                   request={request}
                   leaveTypes={leaveTypes}
+                  excludeSundaysFromLeave={excludeSundaysFromLeave}
                   getStatusColor={getStatusColor}
                   getStatusLabel={getStatusLabel}
                   getStatusIcon={getStatusIcon}
@@ -644,6 +656,7 @@ export function LeaveManagementScreen() {
 function LeaveRequestCard({
   request,
   leaveTypes,
+  excludeSundaysFromLeave,
   getStatusColor,
   getStatusLabel,
   getStatusIcon,
@@ -654,6 +667,7 @@ function LeaveRequestCard({
 }: {
   request: LeaveRequest;
   leaveTypes: LeaveType[];
+  excludeSundaysFromLeave: boolean;
   getStatusColor: (status: string) => string;
   getStatusLabel: (status: string) => string;
   getStatusIcon: (status: string) => React.ReactNode;
@@ -665,11 +679,7 @@ function LeaveRequestCard({
   const leaveType = leaveTypes.find(t => t.id === request.leave_type_id);
 
   const calculateDays = () => {
-    const start = new Date(request.start_date);
-    const end = new Date(request.end_date);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
+    return calculateLeaveDays(request.start_date, request.end_date, excludeSundaysFromLeave);
   };
 
   return (
