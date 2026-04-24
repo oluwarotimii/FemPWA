@@ -27,11 +27,14 @@ interface StaffDetails {
   phone_number: string;
   alternate_phone_number: string;
   date_of_birth: string;
+  nationality: string;
+  state_of_origin: string;
+  lga: string;
   gender: string;
   marital_status: string;
   blood_group: string;
-  current_address_id: string;
-  permanent_address_id: string;
+  current_address?: string;
+  permanent_address?: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
   emergency_contact_relationship: string;
@@ -295,6 +298,9 @@ export function ProfileScreen() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoRow label="Date of Birth" value={formatDate(staffDetails?.date_of_birth)} />
             <InfoRow label="Gender" value={formatStatus(staffDetails?.gender)} />
+            <InfoRow label="Nationality" value={staffDetails?.nationality || 'N/A'} />
+            <InfoRow label="State of Origin" value={staffDetails?.state_of_origin || 'N/A'} />
+            <InfoRow label="LGA" value={staffDetails?.lga || 'N/A'} />
             <InfoRow label="Marital Status" value={formatStatus(staffDetails?.marital_status)} />
             <InfoRow label="Blood Group" value={staffDetails?.blood_group || 'N/A'} />
             <InfoRow label="Phone Number" value={staffDetails?.phone_number || 'N/A'} icon={<Phone className="w-4 h-4" />} />
@@ -361,11 +367,11 @@ export function ProfileScreen() {
           <div className="space-y-3">
             <div>
               <div className="text-xs text-gray-500 mb-1">Current Address</div>
-              <div className="text-sm text-gray-900">{staffDetails?.current_address_id || 'Not provided'}</div>
+              <div className="text-sm text-gray-900">{staffDetails?.current_address || 'Not provided'}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-1">Permanent Address</div>
-              <div className="text-sm text-gray-900">{staffDetails?.permanent_address_id || 'Not provided'}</div>
+              <div className="text-sm text-gray-900">{staffDetails?.permanent_address || 'Not provided'}</div>
             </div>
           </div>
         </CardContent>

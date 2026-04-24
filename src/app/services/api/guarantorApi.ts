@@ -7,7 +7,7 @@ export interface Guarantor {
   middle_name?: string;
   last_name: string;
   date_of_birth?: string;
-  gender?: 'male' | 'female' | 'other';
+  gender?: 'male' | 'female';
   phone_number: string;
   alternate_phone?: string;
   email?: string;
@@ -49,7 +49,7 @@ export interface GuarantorInput {
   middle_name?: string;
   last_name: string;
   date_of_birth?: string;
-  gender?: 'male' | 'female' | 'other';
+  gender?: 'male' | 'female';
   phone_number: string;
   alternate_phone?: string;
   email?: string;
