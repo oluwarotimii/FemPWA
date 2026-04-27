@@ -82,6 +82,15 @@ interface TimeOffBank {
   valid_to: string;
 }
 
+interface AttendanceLocation {
+  id: number;
+  name: string;
+  location_coordinates: string; // "POINT(lng lat)"
+  location_radius_meters: number;
+  branch_id: number | null;
+  is_active: boolean;
+}
+
 export const attendanceApi = {
   // Mark attendance (clock in/out)
   clockInOut: async (request: ClockInOutRequest): Promise<{ success: boolean; message: string; data: { attendance: AttendanceRecord } }> => {
@@ -170,6 +179,26 @@ export const attendanceApi = {
   // Clock out
   checkOut: async (request: Partial<AttendanceRecord> & { is_auto_checkout?: boolean }): Promise<{ success: boolean; message: string; data: { attendance: AttendanceRecord } }> => {
     const response = await apiClient.post('/attendance/check-out', request);
+    return response.data;
+  },
+
+  // Get my assigned attendance locations (for geofencing UI)
+  getMyLocations: async (): Promise<{
+    success: boolean;
+    message: string;
+    data: { locations: AttendanceLocation[]; assigned_location_ids: number[] };
+  }> => {
+    const response = await apiClient.get('/attendance/my-locations');
+    return response.data;
+  },
+
+  // Get attendance settings for the current user's branch (staff-safe)
+  getMyAttendanceSettings: async (params?: { branchId?: number }): Promise<{
+    success: boolean;
+    message: string;
+    data: { settings: any };
+  }> => {
+    const response = await apiClient.get('/attendance/settings', { params });
     return response.data;
   },
 

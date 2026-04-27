@@ -4,7 +4,7 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
-import { attendanceApi, branchesApi, shiftApi } from '@/app/services/api';
+import { attendanceApi, shiftApi } from '@/app/services/api';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
@@ -39,6 +39,8 @@ export function DashboardScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showGeoDetails, setShowGeoDetails] = useState(false);
+  const debugEnabled = import.meta.env.DEV || localStorage.getItem('attendance_debug') === '1';
 
   // Track today's attendance status
   const [todayRecord, setTodayRecord] = useState<any | null>(null);
@@ -47,12 +49,18 @@ export function DashboardScreen() {
 
   // Geofencing states
   const [branchInfo, setBranchInfo] = useState<any>(null);
+  const [assignedLocations, setAssignedLocations] = useState<any[]>([]);
+  const [nearestAssignedLocation, setNearestAssignedLocation] = useState<any | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [distanceFromBranch, setDistanceFromBranch] = useState<number | null>(null);
+  const [distanceFromAssignedLocation, setDistanceFromAssignedLocation] = useState<number | null>(null);
+  const [assignedLocationRadius, setAssignedLocationRadius] = useState<number | null>(null);
   const [isWithinRange, setIsWithinRange] = useState<boolean | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
+  const [gpsTimestamp, setGpsTimestamp] = useState<number | null>(null);
 
   // Loading modal states
   const [showLoadingModal, setShowLoadingModal] = useState(false);
@@ -166,46 +174,46 @@ export function DashboardScreen() {
     }
   };
 
-  // Fetch branch info
+  // Fetch branch attendance settings (staff-safe; does not require branches:read)
   const fetchBranchInfo = async () => {
-    if (!user?.branchId) return;
-    
-    // Check local cache first for speed
-    const cacheKey = `branch_info_${user.branchId}`;
-    const cachedBranch = localStorage.getItem(cacheKey);
-    if (cachedBranch) {
-      try {
-        setBranchInfo(JSON.parse(cachedBranch));
-      } catch (e) {
-        console.error('Error parsing cached branch:', e);
-      }
-    }
-
     try {
-      const response = await branchesApi.getBranchById(user.branchId);
-      if (response.success && response.data?.branch) {
-        setBranchInfo(response.data.branch);
-        // Update cache
-        localStorage.setItem(cacheKey, JSON.stringify(response.data.branch));
+      if (debugEnabled) {
+        console.log('[Attendance][Branch] Fetching branch settings via /attendance/settings...');
+      }
+      const res = await attendanceApi.getMyAttendanceSettings();
+      const settings = res.data?.settings;
+      if (settings) {
+        setBranchInfo(settings);
+        if (debugEnabled) {
+          console.log('[Attendance][Branch] Branch settings loaded:', settings);
+        }
       }
     } catch (error: any) {
-      // If 403 (forbidden), try to get all branches and find the user's branch
-      if (error.response?.status === 403) {
-        try {
-          const allBranchesResponse = await branchesApi.getAllBranches();
-          if (allBranchesResponse.success && allBranchesResponse.data?.branches) {
-            const userBranch = allBranchesResponse.data.branches.find((b: any) => b.id === user.branchId);
-            if (userBranch) {
-              setBranchInfo(userBranch);
-              localStorage.setItem(cacheKey, JSON.stringify(userBranch));
-            }
-          }
-        } catch (fallbackError) {
-          console.error('Failed to fetch branch info (fallback also failed):', fallbackError);
-        }
+      console.error('[Attendance][Branch] Failed to fetch /attendance/settings:', {
+        status: error?.response?.status,
+        message: error?.response?.data?.message || error?.message,
+        data: error?.response?.data
+      });
+      // Non-fatal: assigned location geofencing still works.
+    }
+  };
+
+  const fetchMyAssignedLocations = async () => {
+    try {
+      const res = await attendanceApi.getMyLocations();
+      const locations = res.data?.locations || [];
+      setAssignedLocations(locations);
+      if (!locations || locations.length === 0) {
+        setAssignmentError('No attendance location assigned. Contact HR to assign your check-in location.');
       } else {
-        console.error('Failed to fetch branch info:', error);
+        setAssignmentError(null);
       }
+      if (debugEnabled) {
+        console.log('[Attendance][Geo] Assigned locations fetched:', locations);
+      }
+    } catch (error) {
+      // If this fails, don't block the rest of the dashboard.
+      console.error('Failed to fetch assigned attendance locations:', error);
     }
   };
 
@@ -225,9 +233,18 @@ export function DashboardScreen() {
           longitude: position.coords.longitude
         };
         setCurrentLocation(coords);
+        setGpsAccuracyMeters(Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null);
+        setGpsTimestamp(typeof position.timestamp === 'number' ? position.timestamp : Date.now());
         setLocationError(null);
         setLocationPermissionDenied(false);
         setIsLocating(false);
+        if (debugEnabled) {
+          console.log('[Attendance][Geo] watchPosition update:', {
+            coords,
+            accuracy_m: position.coords.accuracy,
+            timestamp: position.timestamp
+          });
+        }
       },
       (error) => {
         console.error('Geolocation error:', error);
@@ -255,37 +272,77 @@ export function DashboardScreen() {
     );
 
     fetchBranchInfo();
+    fetchMyAssignedLocations();
     refreshAttendance();
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // Update distance when location or branch changes
-  useEffect(() => {
-    if (currentLocation && branchInfo?.location_coordinates) {
-      try {
-        // Parse POINT(lng lat)
-        const match = branchInfo.location_coordinates.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
-        if (match) {
-          const branchLng = parseFloat(match[1]);
-          const branchLat = parseFloat(match[2]);
-          const radius = branchInfo.location_radius_meters || 100;
+  const parsePoint = (value: string | null | undefined): { lat: number; lng: number } | null => {
+    if (!value) return null;
+    const match = value.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/i);
+    if (!match) return null;
+    const lng = parseFloat(match[1]);
+    const lat = parseFloat(match[2]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  };
 
+  // Update distance when location or assignments change
+  useEffect(() => {
+    if (currentLocation && assignedLocations.length > 0) {
+      try {
+        let best: { location: any; distance: number; radius: number } | null = null;
+        for (const loc of assignedLocations) {
+          const point = parsePoint(loc.location_coordinates);
+          if (!point) continue;
           const distance = calculateDistance(
             currentLocation.latitude,
             currentLocation.longitude,
-            branchLat,
-            branchLng
+            point.lat,
+            point.lng
           );
+          const radius = Number(loc.location_radius_meters) || 100;
+          if (!best || distance < best.distance) {
+            best = { location: loc, distance, radius };
+          }
+        }
 
-          setDistanceFromBranch(distance);
-          setIsWithinRange(distance <= radius);
+        if (best) {
+          setNearestAssignedLocation(best.location);
+          setDistanceFromAssignedLocation(best.distance);
+          setAssignedLocationRadius(best.radius);
+          setIsWithinRange(best.distance <= best.radius);
+          if (debugEnabled) {
+            console.log('[Attendance][Geo] Compare user vs assigned locations:', {
+              userCoords: currentLocation,
+              assignedCount: assignedLocations.length,
+              nearest: {
+                id: best.location?.id,
+                name: best.location?.name,
+                radius_m: best.radius,
+                distance_m: best.distance,
+                within: best.distance <= best.radius
+              },
+              accuracy_m: gpsAccuracyMeters
+            });
+          }
+        } else {
+          setNearestAssignedLocation(null);
+          setDistanceFromAssignedLocation(null);
+          setAssignedLocationRadius(null);
+          setIsWithinRange(null);
         }
       } catch (err) {
         console.error('Error calculating distance:', err);
       }
+    } else if (assignedLocations.length === 0) {
+      setNearestAssignedLocation(null);
+      setDistanceFromAssignedLocation(null);
+      setAssignedLocationRadius(null);
+      setIsWithinRange(null);
     }
-  }, [currentLocation, branchInfo]);
+  }, [currentLocation, assignedLocations, gpsAccuracyMeters, debugEnabled]);
 
   // Update time every minute
   useEffect(() => {
@@ -302,6 +359,13 @@ export function DashboardScreen() {
       if (currentLocation && !locationError) {
         console.log('Using fresh watched location for instant check-in');
         setLocationPermissionDenied(false);
+        if (debugEnabled) {
+          console.log('[Attendance][Geo] Using watched location for submit:', {
+            coords: currentLocation,
+            accuracy_m: gpsAccuracyMeters,
+            ts: gpsTimestamp
+          });
+        }
         resolve(currentLocation);
         return;
       }
@@ -317,6 +381,13 @@ export function DashboardScreen() {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocationPermissionDenied(false);
+          if (debugEnabled) {
+            console.log('[Attendance][Geo] getCurrentPosition result:', {
+              coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
+              accuracy_m: position.coords.accuracy,
+              timestamp: position.timestamp
+            });
+          }
           resolve({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -381,6 +452,9 @@ export function DashboardScreen() {
         };
         
         const response = await attendanceApi.checkOut(checkOutData);
+        if (debugEnabled) {
+          console.log('[Attendance] Check-out request/response:', { request: checkOutData, response });
+        }
 
         setLoadingStage('success');
         setLoadingMessage('Successfully clocked out!');
@@ -404,8 +478,28 @@ export function DashboardScreen() {
           location_address: coords ? 'Mobile GPS' : 'Office (Manual)',
           status: 'present'
         };
-        
+
+        if (debugEnabled) {
+          console.log('[Attendance] Pre-check-in geo state:', {
+            coords,
+            assignedCount: assignedLocations.length,
+            nearestAssignedLocation: nearestAssignedLocation
+              ? {
+                  id: nearestAssignedLocation.id,
+                  name: nearestAssignedLocation.name,
+                  radius_m: assignedLocationRadius,
+                  distance_m: distanceFromAssignedLocation,
+                  within: isWithinRange
+                }
+              : null,
+            accuracy_m: gpsAccuracyMeters,
+          });
+        }
+
         const response = await attendanceApi.checkIn(checkInData);
+        if (debugEnabled) {
+          console.log('[Attendance] Check-in request/response:', { request: checkInData, response });
+        }
 
         setLoadingStage('success');
         setLoadingMessage('Successfully clocked in!');
@@ -432,6 +526,13 @@ export function DashboardScreen() {
     } catch (error: any) {
       setShowLoadingModal(false);
       setLoadingStage(null);
+      if (debugEnabled) {
+        console.log('[Attendance] Clock action error:', {
+          status: error?.response?.status,
+          message: error?.response?.data?.message || error?.message,
+          data: error?.response?.data
+        });
+      }
       
       // Specific error handling based on backend response codes
       if (error.response?.status === 403) {
@@ -593,6 +694,28 @@ export function DashboardScreen() {
                       <Info className="w-3.5 h-3.5" />
                       <span>{locationError}</span>
                     </motion.div>
+                  ) : assignmentError ? (
+                    <motion.div 
+                      key="assignment"
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="flex flex-col items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/20 text-amber-100 text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Info className="w-3.5 h-3.5" />
+                        <span>{assignmentError}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-[11px]"
+                        onClick={() => fetchMyAssignedLocations()}
+                      >
+                        Refresh
+                      </Button>
+                    </motion.div>
                   ) : isLocating ? (
                     <motion.div 
                       key="locating"
@@ -623,10 +746,69 @@ export function DashboardScreen() {
                         </span>
                       </div>
                       
-                      {!isWithinRange && distanceFromBranch !== null && (
+                      {!isWithinRange && distanceFromAssignedLocation !== null && (
                         <p className="text-white/60 text-[10px] mt-1 italic">
-                          You are approx. {Math.round(distanceFromBranch)}m away. Move closer to the branch.
+                          You are approx. {Math.round(distanceFromAssignedLocation)}m away from {nearestAssignedLocation?.name || 'your assigned location'}. Move closer.
                         </p>
+                      )}
+
+                      <button
+                        type="button"
+                        className="text-[10px] text-white/60 underline underline-offset-4"
+                        onClick={() => setShowGeoDetails(v => !v)}
+                      >
+                        {showGeoDetails ? 'Hide details' : 'Show details'}
+                      </button>
+
+                      {showGeoDetails && (
+                        <div className="w-full mt-2 rounded-xl bg-white/10 border border-white/10 p-3 text-left text-[11px] text-white/75">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/60">Nearest location</span>
+                            <span className="font-semibold text-white/90">{nearestAssignedLocation?.name || '-'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 mt-1">
+                            <span className="text-white/60">Radius</span>
+                            <span className="font-semibold text-white/90">{assignedLocationRadius ?? '-'}m</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 mt-1">
+                            <span className="text-white/60">Distance</span>
+                            <span className="font-semibold text-white/90">
+                              {distanceFromAssignedLocation !== null ? `${Math.round(distanceFromAssignedLocation)}m` : '-'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 mt-1">
+                            <span className="text-white/60">GPS accuracy</span>
+                            <span className="font-semibold text-white/90">{gpsAccuracyMeters !== null ? `${Math.round(gpsAccuracyMeters)}m` : '-'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 mt-1">
+                            <span className="text-white/60">Assigned locations</span>
+                            <span className="font-semibold text-white/90">{assignedLocations.length}</span>
+                          </div>
+                          {debugEnabled && (
+                            <pre className="mt-2 text-[10px] leading-snug whitespace-pre-wrap text-white/70">
+                              {JSON.stringify(
+                                {
+                                  currentLocation,
+                                  gpsAccuracyMeters,
+                                  gpsTimestamp,
+                                  nearestAssignedLocation: nearestAssignedLocation
+                                    ? {
+                                        id: nearestAssignedLocation.id,
+                                        name: nearestAssignedLocation.name,
+                                        location_coordinates: nearestAssignedLocation.location_coordinates,
+                                        location_radius_meters: nearestAssignedLocation.location_radius_meters,
+                                      }
+                                    : null,
+                                  distanceFromAssignedLocation,
+                                  assignedLocationRadius,
+                                  isWithinRange,
+                                },
+                                null,
+                                2
+                              )}
+                            </pre>
+                          )}
+                        </div>
                       )}
                     </motion.div>
                   ) : null}
@@ -667,7 +849,12 @@ export function DashboardScreen() {
                     ? 'bg-red-500 hover:bg-red-600'
                     : 'bg-green-500 hover:bg-green-600'
                 }`}
-                disabled={loading || hasCheckedInToday || todaySchedule?.is_working_day === false}
+                disabled={
+                  loading ||
+                  hasCheckedInToday ||
+                  todaySchedule?.is_working_day === false ||
+                  (!isClocked && (!!assignmentError || !!locationError || isWithinRange === false))
+                }
                 onClick={hasCheckedInToday ? undefined : handleClockAction}
               >
                 {loading
@@ -678,6 +865,12 @@ export function DashboardScreen() {
                     : '✓ Checked In'
                   : todaySchedule?.is_working_day === false
                   ? todaySchedule?.schedule_type === 'holiday' ? 'Holiday' : 'Non-Working Day'
+                  : !isClocked && assignmentError
+                  ? 'No Location Assigned'
+                  : !isClocked && locationError
+                  ? 'Enable Location'
+                  : !isClocked && isWithinRange === false
+                  ? 'Move Closer'
                   : isClocked
                   ? 'Clock Out'
                   : 'Clock In'}

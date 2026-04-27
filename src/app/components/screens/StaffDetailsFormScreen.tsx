@@ -48,6 +48,7 @@ interface StaffDetails {
   gender: string;
   marital_status: string;
   blood_group: string;
+  religion: string;
   current_address: string;
   permanent_address: string;
   emergency_contact_name: string;
@@ -263,6 +264,7 @@ export function StaffDetailsFormScreen() {
     gender: '',
     marital_status: '',
     blood_group: '',
+    religion: '',
     current_address: '',
     permanent_address: '',
     emergency_contact_name: '',
@@ -507,6 +509,7 @@ export function StaffDetailsFormScreen() {
             gender: staff.gender || '',
             marital_status: staff.marital_status || '',
             blood_group: staff.blood_group || '',
+            religion: staff.religion || '',
             current_address: staff.current_address || '',
             permanent_address: staff.permanent_address || '',
             emergency_contact_name: staff.emergency_contact_name || '',
@@ -799,6 +802,7 @@ export function StaffDetailsFormScreen() {
         gender: formData.gender,
         marital_status: formData.marital_status,
         blood_group: formData.blood_group,
+        religion: formData.religion,
         current_address: formData.current_address,
         permanent_address: formData.permanent_address,
         emergency_contact_name: formData.emergency_contact_name,
@@ -1049,6 +1053,17 @@ export function StaffDetailsFormScreen() {
               <SelectItem value="female">Female</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="religion">Religion</Label>
+          <Input
+            id="religion"
+            placeholder="e.g., Christianity, Islam"
+            value={formData.religion}
+            onChange={(e) => handleInputChange('religion', e.target.value)}
+            className="mt-1"
+          />
         </div>
 
         <div>
@@ -1657,6 +1672,7 @@ export function StaffDetailsFormScreen() {
               <div><span className="text-gray-500">State of Origin:</span> {formData.state_of_origin || '-'}</div>
               <div><span className="text-gray-500">LGA:</span> {formData.lga || '-'}</div>
               <div><span className="text-gray-500">Gender:</span> {formData.gender || '-'}</div>
+              <div><span className="text-gray-500">Religion:</span> {formData.religion || '-'}</div>
               <div><span className="text-gray-500">Phone:</span> {formData.phone_number || '-'}</div>
               <div><span className="text-gray-500">Email (Login):</span> {formData.personal_email || '-'}</div>
               <div><span className="text-gray-500">Marital Status:</span> {formData.marital_status || '-'}</div>
