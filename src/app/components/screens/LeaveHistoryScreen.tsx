@@ -181,8 +181,8 @@ export function LeaveHistoryScreen() {
     return <Briefcase className="w-4 h-4" />;
   };
 
-  const calculateDays = (startDate: string, endDate: string) => {
-    return calculateLeaveDays(startDate, endDate, excludeSundaysFromLeave);
+  const calculateDays = (request: LeaveRequest) => {
+    return Number((request as any).days_requested) || calculateLeaveDays(request.start_date, request.end_date, excludeSundaysFromLeave);
   };
 
   // Group requests by year and month
@@ -212,7 +212,7 @@ export function LeaveHistoryScreen() {
     rejected: displayRequests.filter((r) => r.status.toLowerCase() === 'rejected').length,
     totalDays: displayRequests
       .filter((r) => r.status.toLowerCase() === 'approved')
-      .reduce((sum, r) => sum + calculateDays(r.start_date, r.end_date), 0),
+      .reduce((sum, r) => sum + calculateDays(r), 0),
   };
 
   return (
@@ -265,7 +265,7 @@ export function LeaveHistoryScreen() {
             rejected: displayData.filter((r) => r.status.toLowerCase() === 'rejected').length,
             totalDays: displayData
               .filter((r) => r.status.toLowerCase() === 'approved')
-              .reduce((sum, r) => sum + calculateDays(r.start_date, r.end_date), 0),
+              .reduce((sum, r) => sum + calculateDays(r), 0),
           };
 
           return (
@@ -564,14 +564,14 @@ function LeaveHistoryCard({
   getStatusColor: (status: string) => string;
   getStatusLabel: (status: string) => string;
   getStatusIcon: (status: string) => React.ReactNode;
-  calculateDays: (start: string, end: string) => number;
+  calculateDays: (request: LeaveRequest) => number;
   canApprove: boolean;
   showUserName?: boolean;
   onApprove: () => void;
   onReject: () => void;
 }) {
   const leaveType = leaveTypes.find((t) => t.id === request.leave_type_id);
-  const days = calculateDays(request.start_date, request.end_date);
+  const days = calculateDays(request);
 
   return (
     <Card className="shadow-sm hover:shadow-md transition-shadow">

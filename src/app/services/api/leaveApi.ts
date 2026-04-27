@@ -25,10 +25,12 @@ export interface LeaveRequest {
   leave_type_name?: string;
   start_date: string;
   end_date: string;
+  days_requested?: number;
   reason: string;
   status: 'submitted' | 'approved' | 'rejected' | 'cancelled';
   attachments?: string[];
-  submitted_at: string;
+  submitted_at?: string;
+  created_at?: string;
   updated_at?: string;
 }
 

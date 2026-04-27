@@ -515,7 +515,7 @@ export function LeaveManagementScreen() {
                         {selectedRequest.user_name || 'Employee'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
+                        {new Date((selectedRequest as any).created_at || (selectedRequest as any).submitted_at || Date.now()).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',
@@ -540,7 +540,7 @@ export function LeaveManagementScreen() {
                   <div className="bg-gray-50 p-2 rounded">
                     <div className="text-xs text-gray-500 mb-1">Duration</div>
                     <div className="font-medium text-gray-900 text-sm">
-                      {calculateDays(selectedRequest.start_date, selectedRequest.end_date)} day{calculateDays(selectedRequest.start_date, selectedRequest.end_date) > 1 ? 's' : ''}
+                      {(Number((selectedRequest as any).days_requested) || calculateDays(selectedRequest.start_date, selectedRequest.end_date))} day{(Number((selectedRequest as any).days_requested) || calculateDays(selectedRequest.start_date, selectedRequest.end_date)) > 1 ? 's' : ''}
                     </div>
                   </div>
                 </div>
@@ -679,7 +679,7 @@ function LeaveRequestCard({
   const leaveType = leaveTypes.find(t => t.id === request.leave_type_id);
 
   const calculateDays = () => {
-    return calculateLeaveDays(request.start_date, request.end_date, excludeSundaysFromLeave);
+    return Number((request as any).days_requested) || calculateLeaveDays(request.start_date, request.end_date, excludeSundaysFromLeave);
   };
 
   return (
