@@ -752,13 +752,13 @@ export function DashboardScreen() {
                         </p>
                       )}
 
-                      <button
+                      {/* <button
                         type="button"
                         className="text-[10px] text-white/60 underline underline-offset-4"
                         onClick={() => setShowGeoDetails(v => !v)}
                       >
                         {showGeoDetails ? 'Hide details' : 'Show details'}
-                      </button>
+                      </button> */}
 
                       {showGeoDetails && (
                         <div className="w-full mt-2 rounded-xl bg-white/10 border border-white/10 p-3 text-left text-[11px] text-white/75">
