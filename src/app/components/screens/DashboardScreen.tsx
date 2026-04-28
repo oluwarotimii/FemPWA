@@ -71,6 +71,8 @@ export function DashboardScreen() {
   const hasCheckedInToday = todayRecord?.check_in_time !== null && todayRecord?.check_in_time !== undefined;
   const hasCheckedOutToday = todayRecord?.check_out_time !== null && todayRecord?.check_out_time !== undefined;
   const isClocked = hasCheckedInToday && !hasCheckedOutToday;
+  const isOnLeaveToday = todayRecord?.status === 'leave' || todaySchedule?.schedule_type === 'leave';
+  const isHolidayToday = todayRecord?.status === 'holiday' || todaySchedule?.schedule_type === 'holiday';
 
   // Auto-checkout hook - automatically checks out user after check-in
   useAutoCheckout({
@@ -507,18 +509,20 @@ export function DashboardScreen() {
           description: `Welcome back, ${user?.fullName}!`
         });
 
-        // Immediately set today's record to prevent double check-in
-        setTodayRecord({
-          check_in_time: new Date().toTimeString().substring(0, 8),
-          check_out_time: null,
-        });
+        // Immediately set today's record (use server response to avoid incorrect UI state)
+        if (response?.data?.attendance) {
+          setTodayRecord(response.data.attendance);
+        }
         
         setTimeout(() => {
           setShowLoadingModal(false);
           setLoadingStage(null);
           setLoading(false);
         }, 1000);
-        return; // Don't refresh, we already updated state
+        if (!response?.data?.attendance) {
+          await refreshAttendance();
+        }
+        return;
       }
 
       // Refresh attendance records after clock out
@@ -827,14 +831,16 @@ export function DashboardScreen() {
             {/* Status Badge */}
             <div className="flex items-center justify-center gap-2 flex-wrap">
               <Badge
-                variant={isClocked ? 'default' : 'secondary'}
+                variant={isClocked || isOnLeaveToday ? 'default' : 'secondary'}
                 className={`${
-                  isClocked
-                    ? 'bg-green-500 hover:bg-green-600'
-                    : 'bg-gray-500 hover:bg-gray-600'
+                  isOnLeaveToday
+                    ? 'bg-blue-500 hover:bg-blue-600'
+                    : isClocked
+                      ? 'bg-green-500 hover:bg-green-600'
+                      : 'bg-gray-500 hover:bg-gray-600'
                 }`}
               >
-                {isClocked ? '● On Shift' : '○ Off Duty'}
+                {isOnLeaveToday ? '● On Leave' : isClocked ? '● On Shift' : '○ Off Duty'}
               </Badge>
             </div>
 
@@ -843,7 +849,7 @@ export function DashboardScreen() {
               <Button
                 size="lg"
                 className={`w-full h-16 text-lg font-semibold rounded-2xl ${
-                  hasCheckedInToday || todaySchedule?.is_working_day === false
+                  isOnLeaveToday || isHolidayToday || hasCheckedInToday || todaySchedule?.is_working_day === false
                     ? 'bg-gray-400 cursor-not-allowed'
                     : isClocked
                     ? 'bg-red-500 hover:bg-red-600'
@@ -851,6 +857,8 @@ export function DashboardScreen() {
                 }`}
                 disabled={
                   loading ||
+                  isOnLeaveToday ||
+                  isHolidayToday ||
                   hasCheckedInToday ||
                   todaySchedule?.is_working_day === false ||
                   (!isClocked && (!!assignmentError || !!locationError || isWithinRange === false))
@@ -859,6 +867,10 @@ export function DashboardScreen() {
               >
                 {loading
                   ? 'Processing...'
+                  : isOnLeaveToday
+                  ? 'On Leave'
+                  : isHolidayToday
+                  ? 'Holiday'
                   : hasCheckedInToday
                   ? hasCheckedOutToday
                     ? '✓ Checked Out'
