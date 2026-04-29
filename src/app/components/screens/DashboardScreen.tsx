@@ -252,27 +252,35 @@ export function DashboardScreen() {
         console.error('Geolocation error:', error);
         const errorMsg = getGeolocationErrorMessage(error);
         setLocationPermissionDenied(error.code === 1);
-        if (error.code === 3) {
-          // If high accuracy times out, try standard accuracy
+
+        // Timeout or Position Unavailable
+        if (error.code === 3 || error.code === 2) {
+          console.log('High accuracy failed or timed out, trying standard accuracy...');
+          // If high accuracy times out or is unavailable, try standard accuracy with longer timeout
           navigator.geolocation.getCurrentPosition(
             (pos) => {
               setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+              setGpsAccuracyMeters(pos.coords.accuracy);
+              setGpsTimestamp(pos.timestamp);
               setLocationError(null);
               setLocationPermissionDenied(false);
+              setIsLocating(false);
             },
             (fallbackError) => {
               console.error('Fallback geolocation error:', fallbackError);
+              setLocationError('Unable to determine location. Please ensure GPS is enabled and you are in an open area.');
+              setIsLocating(false);
             },
-            { enableHighAccuracy: false, timeout: 5000 }
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
           );
+          return; // Don't set error yet, wait for fallback
         }
-        
+
         setLocationError(errorMsg);
         setIsLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
-    );
-
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+      );
     fetchBranchInfo();
     fetchMyAssignedLocations();
     refreshAttendance();
