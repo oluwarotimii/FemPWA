@@ -11,6 +11,8 @@ interface User {
   fullName: string;
   roleId: number;
   branchId: number;
+  needs_password_change?: boolean;
+  needs_profile_completion?: boolean;
 }
 
 interface Permissions {
@@ -34,9 +36,9 @@ interface LoginResponse {
 }
 
 interface ChangePasswordRequest {
-  current_password: string;
-  new_password: string;
-  confirm_new_password: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword?: string;
 }
 
 export const authApi = {
