@@ -32,9 +32,9 @@ export function ChangePasswordScreen() {
     setLoading(true);
     try {
       const response = await authApi.changePassword({
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_new_password: confirmNewPassword
+        currentPassword,
+        newPassword,
+        confirmNewPassword
       });
 
       toast.success(response.message);

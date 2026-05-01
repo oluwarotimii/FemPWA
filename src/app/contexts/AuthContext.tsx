@@ -123,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               phone: response.data.staff.phone,
               designation: response.data.staff.designation,
               department: response.data.staff.department,
-              needs_password_change: response.data.staff.needs_password_change,
-              needs_profile_completion: response.data.staff.needs_profile_completion
+              needs_password_change: !!response.data.staff.must_change_password,
+              needs_profile_completion: !response.data.staff.phone
             };
           }
 

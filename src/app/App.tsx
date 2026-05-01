@@ -12,7 +12,7 @@ import { ShiftsManagementScreen } from '@/app/components/screens/ShiftsManagemen
 import { NotificationsScreen } from '@/app/components/screens/NotificationsScreen';
 import { FormsScreen } from '@/app/components/screens/FormsScreen';
 import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
-import { ChangePasswordScreen } from '@/app/components/screens/ChangePasswordScreen';
+import { ChangePasswordScreen } from './components/screens/ChangePasswordScreen';
 import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
 import { StaffDetailsFormScreen } from '@/app/components/screens/StaffDetailsFormScreen';
 import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
@@ -41,10 +41,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Force password change if required - TEMPORARILY DISABLED
-  // if (user?.needs_password_change && location.pathname !== '/change-password') {
-  //   return <Navigate to="/change-password" replace />;
-  // }
+  // Force password change if required
+  if (user?.needs_password_change && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
 
   // Don't render children until user is loaded
   if (!user) {
@@ -93,14 +93,14 @@ function AppRoutes() {
           isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginScreen />
         }
       />
-      {/* <Route
+      <Route
         path="/change-password"
         element={
           <ProtectedRoute>
             <ChangePasswordScreen />
           </ProtectedRoute>
         }
-      /> */}
+      />
       {/* Change password route temporarily disabled */}
       <Route
         path="/fill-personal-details"
