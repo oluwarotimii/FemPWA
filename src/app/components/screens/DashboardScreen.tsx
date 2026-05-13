@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
 import { calculateDistance } from '@/app/utils/geofencing';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const getGeolocationErrorMessage = (error: { code?: number } | null) => {
   if (!error) return 'Unable to get your location. Please try again.';
@@ -85,24 +86,15 @@ export function DashboardScreen() {
   // Refresh attendance records
   const refreshAttendance = async () => {
     try {
-      // Get today's date in local timezone
-      const today = new Date().toLocaleDateString('en-CA', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }); // Returns YYYY-MM-DD in local timezone
+      // Standardize "Today" string
+      const todayStr = format(new Date(), "yyyy-MM-dd");
 
-      // Fetch records for the entire month to find today's record
-      // Use local date strings to avoid UTC-shifting during split('T')[0]
       const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      
-      const startDate = firstDay.toLocaleDateString('en-CA'); // YYYY-MM-DD
-      const endDate = lastDay.toLocaleDateString('en-CA');     // YYYY-MM-DD
+      const startDate = format(startOfMonth(now), "yyyy-MM-dd");
+      const endDate = format(endOfMonth(now), "yyyy-MM-dd");
       
       console.log('=== Refreshing Attendance ===');
-      console.log('Today (local):', today);
+      console.log('Today:', todayStr);
       console.log('Date range:', startDate, 'to', endDate);
 
       const response = await attendanceApi.getMyAttendance({
@@ -112,22 +104,30 @@ export function DashboardScreen() {
       });
       const records = response.data?.attendance || [];
 
-      // Sort records by date in descending order (most recent first)
-      const sortedRecords = [...records].sort((a, b) => {
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      });
+      // Fix: Deduplicate records by date (prevents duplicates in Recent Activity)
+      const uniqueRecords = records.reduce((acc: any[], current: any) => {
+        const dateStr = current.date.split('T')[0];
+        const existing = acc.find(r => r.date.split('T')[0] === dateStr);
+        if (!existing) {
+          acc.push(current);
+        } else if (current.status === 'present' || current.status === 'late') {
+          const index = acc.indexOf(existing);
+          acc[index] = current;
+        }
+        return acc;
+      }, []);
+
+      const sortedRecords = [...uniqueRecords].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
 
       setAttendanceRecords(sortedRecords);
 
       console.log('Total records fetched:', records.length);
+      console.log('Unique records:', uniqueRecords.length);
       
-      // Find today's record - compare using local date strings
-      const todaysRecord = records.find((r: any) => {
-        const recordDate = r.date.includes('T') 
-          ? new Date(r.date).toLocaleDateString('en-CA') 
-          : r.date;
-        return recordDate === today;
-      });
+      // Fix: Robust "Today" record finding
+      const todaysRecord = uniqueRecords.find((r: any) => r.date.split('T')[0] === todayStr);
 
       if (!todaysRecord) {
         console.log('✗ No record found for today');
@@ -450,10 +450,12 @@ export function DashboardScreen() {
       setLoadingStage('submitting');
       setLoadingMessage('Submitting attendance...');
 
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+
       if (isClocked) {
         // Check out
         const checkOutData = {
-          date: new Date().toISOString().split('T')[0],
+          date: todayStr,
           check_out_time: new Date().toTimeString().substring(0, 8),
           location_coordinates: coords
             ? `POINT(${coords.longitude} ${coords.latitude})`
@@ -480,7 +482,7 @@ export function DashboardScreen() {
       } else {
         // Check in
         const checkInData = {
-          date: new Date().toISOString().split('T')[0],
+          date: todayStr,
           check_in_time: new Date().toTimeString().substring(0, 8),
           location_coordinates: coords
             ? `POINT(${coords.longitude} ${coords.latitude})`
