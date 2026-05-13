@@ -230,7 +230,8 @@ export function AttendanceHistoryScreen() {
             if (workingDaysData.success && workingDaysData.data?.workingDays) {
               const workingDaysMap: Record<string, any> = {};
               workingDaysData.data.workingDays.forEach((day: any) => {
-                workingDaysMap[day.day_of_week] = {
+                // Ensure key is lowercase for consistent lookup
+                workingDaysMap[day.day_of_week.toLowerCase()] = {
                   is_working_day: day.is_working_day,
                   start_time: day.start_time,
                   end_time: day.end_time
@@ -243,8 +244,9 @@ export function AttendanceHistoryScreen() {
           }
         }
         
-        const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
-        const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).toISOString().split('T')[0];
+        // Fix: Use local date formatting for API range (Avoid .toISOString() shift)
+        const startDate = format(startOfMonth(currentMonth), "yyyy-MM-dd");
+        const endDate = format(endOfMonth(currentMonth), "yyyy-MM-dd");
 
         const response = await attendanceApi.getMyAttendance({
           startDate,
@@ -252,38 +254,38 @@ export function AttendanceHistoryScreen() {
           limit: 100
         });
 
-        const apiRecords = response.data.attendance;
-        setAttendanceRecords(apiRecords);
+        const apiRecords: AttendanceRecord[] = response.data.attendance;
 
-        // Convert API records to calendar format with timezone handling
+        // Fix: Deduplicate records by date (prioritize present/late over absent)
+        const deduplicatedRecords = apiRecords.reduce((acc: AttendanceRecord[], current) => {
+          const dateStr = current.date.split('T')[0];
+          const existing = acc.find(r => r.date.split('T')[0] === dateStr);
+          if (!existing) {
+            acc.push(current);
+          } else if (current.status === 'present' || current.status === 'late') {
+            // Replace 'absent' or 'weekend' with actual attendance if it exists
+            const index = acc.indexOf(existing);
+            acc[index] = current;
+          }
+          return acc;
+        }, []);
+
+        setAttendanceRecords(deduplicatedRecords);
+
+        // Fix: Standardize Map Keys (No timezone conversion)
+        const recordMap = new Map(
+          deduplicatedRecords.map((r) => [r.date.split('T')[0], r])
+        );
+
+        // Convert API records to calendar format
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(currentMonth);
         const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-        // Create a map using local dates
-        const recordMap = new Map(
-          apiRecords.map((r: AttendanceRecord) => {
-            // Convert UTC date to local date
-            const localDate = new Date(r.date).toLocaleDateString('en-CA', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit'
-            });
-            return [localDate, r];
-          })
-        );
-
         const calendarData: CalendarDayRecord[] = daysInMonth.map((day) => {
           const dateStr = format(day, "yyyy-MM-dd");
-          const localDateStr = day.toLocaleDateString('en-CA', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          });
-          const dayOfWeek = getDay(day);
-          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-          const dayName = dayNames[dayOfWeek];
-          const apiRecord = recordMap.get(localDateStr);
+          const dayName = format(day, "eeee").toLowerCase();
+          const apiRecord = recordMap.get(dateStr);
 
           if (apiRecord) {
             return {
