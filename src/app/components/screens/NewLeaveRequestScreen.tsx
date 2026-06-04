@@ -115,7 +115,15 @@ export function NewLeaveRequestScreen() {
       navigate('/leave');
     } catch (error: any) {
       console.error('Failed to submit leave request:', error);
-      toast.error(error.response?.data?.message || 'Failed to submit leave request');
+      
+      let errorMessage = error.response?.data?.message || 'Failed to submit leave request';
+      
+      // Handle timeout specifically
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'))) {
+        errorMessage = 'The request is taking longer than expected. Please check your leave list in a few moments to see if it was submitted successfully before trying again.';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

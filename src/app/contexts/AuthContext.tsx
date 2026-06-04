@@ -217,9 +217,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(mappedUser);
       console.log('Login successful! User state set:', mappedUser);
 
-      // Small delay to ensure React state propagates before navigation
-      await new Promise(resolve => setTimeout(resolve, 200));
-
       return mappedUser;
     } catch (error: any) {
       console.error('Login error:', error);
