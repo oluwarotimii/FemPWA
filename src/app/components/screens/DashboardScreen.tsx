@@ -137,24 +137,22 @@ export function DashboardScreen() {
       
       setTodayRecord(todaysRecord || null);
 
-      // Fetch today's schedule to check for working day/holiday/hours
-      try {
-        const scheduleRes = await shiftApi.getMyTodayShift();
-        if (scheduleRes.success) {
-          setTodaySchedule(scheduleRes.data.schedule);
-        }
-      } catch (err) {
-        console.error('Failed to fetch today schedule:', err);
+      // Fetch today's schedule and exceptions in parallel
+      const [scheduleRes, exceptionsRes] = await Promise.allSettled([
+        shiftApi.getMyTodayShift(),
+        shiftApi.getMyShiftExceptions()
+      ]);
+
+      if (scheduleRes.status === 'fulfilled' && scheduleRes.value.success) {
+        setTodaySchedule(scheduleRes.value.data.schedule);
+      } else if (scheduleRes.status === 'rejected') {
+        console.error('Failed to fetch today schedule:', scheduleRes.reason);
       }
 
-      // Fetch upcoming exceptions
-      try {
-        const exceptionsRes = await shiftApi.getMyShiftExceptions();
-        if (exceptionsRes.success) {
-          setMyExceptions(exceptionsRes.data.exceptions || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch exceptions:', err);
+      if (exceptionsRes.status === 'fulfilled' && exceptionsRes.value.success) {
+        setMyExceptions(exceptionsRes.value.data.exceptions || []);
+      } else if (exceptionsRes.status === 'rejected') {
+        console.error('Failed to fetch exceptions:', exceptionsRes.reason);
       }
     } catch (error: any) {
       console.error('Failed to fetch attendance records:', error);
@@ -281,9 +279,11 @@ export function DashboardScreen() {
       },
       { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
       );
-    fetchBranchInfo();
-    fetchMyAssignedLocations();
-    refreshAttendance();
+    Promise.allSettled([
+      fetchBranchInfo(),
+      fetchMyAssignedLocations(),
+      refreshAttendance()
+    ]);
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);

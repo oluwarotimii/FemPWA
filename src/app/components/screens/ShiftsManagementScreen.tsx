@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, CheckCircle, AlertCircle, Coffee, Sun, Moon, CalendarDays, TrendingUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Calendar, Clock, CheckCircle, AlertCircle, Coffee, Sun, Moon, CalendarDays, TrendingUp, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
@@ -9,7 +10,12 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { shiftApi, type EmployeeShiftAssignment, type ShiftException } from '@/app/services/api';
 
 export function ShiftsManagementScreen() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+  const canManageExceptions = hasPermission('shift_exception:read')
+    || hasPermission('shift_exception:create')
+    || hasPermission('shift_exception:update')
+    || hasPermission('shift_exception:delete');
   const [activeTab, setActiveTab] = useState<'my-schedule' | 'upcoming' | 'exceptions'>('my-schedule');
   const [myAssignments, setMyAssignments] = useState<EmployeeShiftAssignment[]>([]);
   const [myExceptions, setMyExceptions] = useState<ShiftException[]>([]);
@@ -337,9 +343,21 @@ export function ShiftsManagementScreen() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-4 py-3">
-          <h1 className="text-lg font-semibold text-gray-900">My Shifts</h1>
-          <p className="text-xs text-gray-600 mt-0.5">View and manage your shift schedule</p>
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">My Shifts</h1>
+            <p className="text-xs text-gray-600 mt-0.5">View and manage your shift schedule</p>
+          </div>
+          {canManageExceptions && (
+            <Button
+              onClick={() => navigate('/shift-exceptions')}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+            >
+              <Settings className="w-3.5 h-3.5 mr-1" /> Manage Exceptions
+            </Button>
+          )}
         </div>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className="grid w-full grid-cols-2">

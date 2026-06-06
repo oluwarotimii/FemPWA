@@ -48,13 +48,19 @@ export interface ShiftException {
   id: number;
   user_id: number;
   user_name?: string;
+  shift_assignment_id?: number | null;
   exception_date: string;
-  exception_type: 'special_schedule' | 'shift_swap' | 'emergency' | 'other';
-  new_start_time?: string;
-  new_end_time?: string;
+  exception_type: 'early_release' | 'late_start' | 'day_off' | 'special_schedule' | 'holiday_work';
+  original_start_time?: string | null;
+  original_end_time?: string | null;
+  new_start_time?: string | null;
+  new_end_time?: string | null;
   new_break_duration_minutes?: number;
-  reason?: string;
-  status: 'active' | 'cancelled' | 'approved';
+  reason?: string | null;
+  approved_by?: number | null;
+  approved_at?: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'active' | 'expired';
+  created_by?: number;
   created_at: string;
   updated_at: string;
 }

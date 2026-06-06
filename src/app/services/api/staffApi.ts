@@ -50,7 +50,30 @@ export const staffApi = {
     return response.data;
   },
 
-
+  // Get all staff (Admin only)
+  getAllStaff: async (params?: {
+    branchId?: number;
+    status?: string;
+    department?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      staff: Staff[];
+      pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalItems: number;
+        itemsPerPage: number;
+      };
+    };
+  }> => {
+    const response = await apiClient.get('/staff/', { params });
+    return response.data;
+  },
 
   // Update staff profile information
   updateStaffProfile: async (userId: number, request: UpdateStaffRequest): Promise<{ success: boolean; message: string; data: { staff: Staff } }> => {
