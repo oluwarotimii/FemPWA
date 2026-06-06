@@ -104,10 +104,14 @@ export function DashboardScreen() {
       });
       const records = response.data?.attendance || [];
 
-      // Fix: Deduplicate records by date (prevents duplicates in Recent Activity)
+      // Fix: Deduplicate records by date using local date to avoid timezone mismatch
       const uniqueRecords = records.reduce((acc: any[], current: any) => {
-        const dateStr = current.date.split('T')[0];
-        const existing = acc.find(r => r.date.split('T')[0] === dateStr);
+        const d = new Date(current.date);
+        const dateStr = format(d, "yyyy-MM-dd");
+        const existing = acc.find((r: any) => {
+          const ed = new Date(r.date);
+          return format(ed, "yyyy-MM-dd") === dateStr;
+        });
         if (!existing) {
           acc.push(current);
         } else if (current.status === 'present' || current.status === 'late') {
@@ -126,8 +130,11 @@ export function DashboardScreen() {
       console.log('Total records fetched:', records.length);
       console.log('Unique records:', uniqueRecords.length);
       
-      // Fix: Robust "Today" record finding
-      const todaysRecord = uniqueRecords.find((r: any) => r.date.split('T')[0] === todayStr);
+      // Fix: Robust "Today" record finding (local date comparison)
+      const todaysRecord = uniqueRecords.find((r: any) => {
+        const rd = new Date(r.date);
+        return format(rd, "yyyy-MM-dd") === todayStr;
+      });
 
       if (!todaysRecord) {
         console.log('✗ No record found for today');

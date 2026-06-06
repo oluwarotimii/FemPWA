@@ -46,15 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const needsPasswordChange = user?.needs_password_change || false;
   const needsProfileCompletion = user?.needs_profile_completion || false;
 
-  // Check if user has a specific permission
+  // Check if user has a specific permission (wildcard '*' grants all)
   const hasPermission = (permission: string): boolean => {
     if (!permissions) return false;
-    return permissions[permission] === true;
+    return permissions['*'] === true || permissions[permission] === true;
   };
 
-  // Check if user has any of the specified permissions
+  // Check if user has any of the specified permissions (wildcard '*' grants all)
   const hasAnyPermission = (permissionList: string[]): boolean => {
     if (!permissions) return false;
+    if (permissions['*'] === true) return true;
     return permissionList.some((perm) => permissions[perm] === true);
   };
 
