@@ -264,10 +264,10 @@ export function AttendanceHistoryScreen() {
 
         const apiRecords: AttendanceRecord[] = response.data.attendance;
 
-        // Fix: Deduplicate records by date (prioritize present/late over absent)
+        // Fix: Deduplicate records by local date (prioritize present/late over absent)
         const deduplicatedRecords = apiRecords.reduce((acc: AttendanceRecord[], current) => {
-          const dateStr = current.date.split('T')[0];
-          const existing = acc.find(r => r.date.split('T')[0] === dateStr);
+          const localDate = format(new Date(current.date), "yyyy-MM-dd");
+          const existing = acc.find(r => format(new Date(r.date), "yyyy-MM-dd") === localDate);
           if (!existing) {
             acc.push(current);
           } else if (current.status === 'present' || current.status === 'late') {
@@ -280,11 +280,11 @@ export function AttendanceHistoryScreen() {
 
         setAttendanceRecords(deduplicatedRecords);
 
-        // Use raw date string for map keys to avoid timezone shifting
+        // Build lookup map using local date to correctly resolve timezone-offset ISO strings
         const recordMap = new Map(
           deduplicatedRecords.map((r) => {
-            const rawDateStr = r.date.includes('T') ? r.date.split('T')[0] : r.date;
-            return [rawDateStr, r];
+            const localDate = format(new Date(r.date), "yyyy-MM-dd");
+            return [localDate, r];
           })
         );
 
