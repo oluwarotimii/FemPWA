@@ -280,9 +280,12 @@ export function AttendanceHistoryScreen() {
 
         setAttendanceRecords(deduplicatedRecords);
 
-        // Fix: Standardize Map Keys (No timezone conversion)
+        // Use raw date string for map keys to avoid timezone shifting
         const recordMap = new Map(
-          deduplicatedRecords.map((r) => [r.date.split('T')[0], r])
+          deduplicatedRecords.map((r) => {
+            const localDateStr = r.date.split('T')[0];
+            return [localDateStr, r];
+          })
         );
 
         // Convert API records to calendar format
