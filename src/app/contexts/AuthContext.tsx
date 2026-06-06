@@ -92,20 +92,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Load permissions from localStorage
-        const storedPermissions = localStorage.getItem('permissions');
-        if (storedPermissions) {
-          try {
-            const parsed = JSON.parse(storedPermissions);
-            setPermissions(parsed);
-          } catch (e) {
-            console.error('Failed to parse stored permissions:', e);
-          }
-        }
-
         // Standard Way: Fetch fresh user data from the server using the stored token
         // This ensures the token is still valid and the user profile is up to date
         const response = await staffApi.getCurrentUserStaffDetails();
+
+        // Refresh permissions from server (not localStorage) so role changes take effect
+        try {
+          const permResponse = await authApi.getPermissions();
+          if (permResponse.success && permResponse.data?.permissions) {
+            setPermissions(permResponse.data.permissions);
+            localStorage.setItem('permissions', JSON.stringify(permResponse.data.permissions));
+          }
+        } catch (permError) {
+          // Fallback to cached permissions if server fetch fails
+          console.warn('Failed to refresh permissions from server, using cached:', permError);
+          const storedPermissions = localStorage.getItem('permissions');
+          if (storedPermissions) {
+            try {
+              const parsed = JSON.parse(storedPermissions);
+              setPermissions(parsed);
+            } catch (e) {
+              console.error('Failed to parse stored permissions:', e);
+            }
+          }
+        }
 
         if (response && response.success && response.data) {
           // Adjust this based on your API structure (e.g., response.data.staff)

@@ -65,6 +65,11 @@ export const authApi = {
     }
   },
 
+  getPermissions: async (): Promise<{ success: boolean; data: { permissions: Permissions } }> => {
+    const response = await apiClient.get('/auth/permissions');
+    return response.data;
+  },
+
   changePassword: async (request: ChangePasswordRequest): Promise<{ success: boolean; message: string }> => {
     // The backend uses the authenticated user's ID
     const response = await apiClient.post('/password-change/change', request);
