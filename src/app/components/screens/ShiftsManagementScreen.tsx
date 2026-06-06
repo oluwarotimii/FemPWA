@@ -12,10 +12,10 @@ import { shiftApi, type EmployeeShiftAssignment, type ShiftException } from '@/a
 export function ShiftsManagementScreen() {
   const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
-  const canManageExceptions = hasPermission('shift_exception:read')
-    || hasPermission('shift_exception:create')
-    || hasPermission('shift_exception:update')
-    || hasPermission('shift_exception:delete');
+  const canManageExceptions = hasPermission('shift-exception:read')
+    || hasPermission('shift-exception:create')
+    || hasPermission('shift-exception:update')
+    || hasPermission('shift-exception:delete');
   const [activeTab, setActiveTab] = useState<'my-schedule' | 'upcoming' | 'exceptions'>('my-schedule');
   const [myAssignments, setMyAssignments] = useState<EmployeeShiftAssignment[]>([]);
   const [myExceptions, setMyExceptions] = useState<ShiftException[]>([]);

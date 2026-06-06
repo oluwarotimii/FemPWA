@@ -48,14 +48,14 @@ export function ShiftExceptionManagementScreen() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
-  const canManage = hasPermission('shift_exception:create')
-    || hasPermission('shift_exception:read')
-    || hasPermission('shift_exception:update')
-    || hasPermission('shift_exception:delete');
+  const canManage = hasPermission('shift-exception:create')
+    || hasPermission('shift-exception:read')
+    || hasPermission('shift-exception:update')
+    || hasPermission('shift-exception:delete');
 
-  const canCreate = hasPermission('shift_exception:create');
-  const canEdit = hasPermission('shift_exception:update');
-  const canDelete = hasPermission('shift_exception:delete');
+  const canCreate = hasPermission('shift-exception:create');
+  const canEdit = hasPermission('shift-exception:update');
+  const canDelete = hasPermission('shift-exception:delete');
 
   const [exceptions, setExceptions] = useState<ShiftException[]>([]);
   const [staffList, setStaffList] = useState<StaffOption[]>([]);
