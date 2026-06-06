@@ -33,26 +33,32 @@ export function NewLeaveRequestScreen() {
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const typesResponse = await leaveApi.getLeaveTypes();
-        setLeaveTypes(typesResponse.data.leaveTypes);
+      const results = await Promise.allSettled([
+        leaveApi.getLeaveTypes(),
+        leaveApi.getLeaveBalances(),
+        leavePolicyApi.getLeavePolicy()
+      ]);
 
-        try {
-          const balancesResponse = await leaveApi.getLeaveBalances();
-          setLeaveBalances(balancesResponse.data.balances);
-        } catch (error) {
-          console.log('Leave balances not available');
-        }
-
-        try {
-          const policyResponse = await leavePolicyApi.getLeavePolicy();
-          setExcludeSundaysFromLeave(!!policyResponse.data.settings.exclude_sundays_from_leave);
-        } catch (policyError) {
-          console.log('Leave policy not available, using default leave day counting');
-        }
-      } catch (error) {
-        console.error('Failed to fetch leave types:', error);
+      // Leave types
+      if (results[0].status === 'fulfilled') {
+        setLeaveTypes(results[0].value.data.leaveTypes);
+      } else {
+        console.error('Failed to fetch leave types:', results[0].reason);
         toast.error('Failed to load leave types');
+      }
+
+      // Leave balances
+      if (results[1].status === 'fulfilled') {
+        setLeaveBalances(results[1].value.data.balances);
+      } else {
+        console.log('Leave balances not available');
+      }
+
+      // Leave policy
+      if (results[2].status === 'fulfilled') {
+        setExcludeSundaysFromLeave(!!results[2].value.data.settings.exclude_sundays_from_leave);
+      } else {
+        console.log('Leave policy not available, using default leave day counting');
       }
     };
 

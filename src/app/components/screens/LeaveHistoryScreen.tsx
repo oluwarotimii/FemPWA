@@ -57,32 +57,44 @@ export function LeaveHistoryScreen() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Always fetch personal leave requests (for all users including admins)
-      const requestsResponse = await leaveApi.getMyLeaveRequests();
-      setLeaveRequests(requestsResponse.data.leaveRequests);
 
-      // Fetch all leave requests if user can manage others
+      // Fire all independent API calls in parallel
+      const promises: Promise<void>[] = [
+        leaveApi.getMyLeaveRequests().then(res => {
+          setLeaveRequests(res.data.leaveRequests);
+        }).catch(err => {
+          console.error('Failed to fetch my leave requests:', err);
+        })
+      ];
+
       if (canViewAll) {
-        try {
-          const allRequestsResponse = await leaveApi.getAllLeaveRequests();
-          setAllLeaveRequests(allRequestsResponse.data.leaveRequests);
-        } catch (allRequestsError) {
-          console.log('Could not fetch all leave requests, falling back to personal requests only');
-          setAllLeaveRequests([]);
-        }
+        promises.push(
+          leaveApi.getAllLeaveRequests().then(res => {
+            setAllLeaveRequests(res.data.leaveRequests);
+          }).catch(err => {
+            console.log('Could not fetch all leave requests, falling back to personal requests only');
+            setAllLeaveRequests([]);
+          })
+        );
       }
 
-      // Fetch leave types
-      const typesResponse = await leaveApi.getLeaveTypes();
-      setLeaveTypes(typesResponse.data.leaveTypes);
+      promises.push(
+        leaveApi.getLeaveTypes().then(res => {
+          setLeaveTypes(res.data.leaveTypes);
+        }).catch(err => {
+          console.error('Failed to fetch leave types:', err);
+        })
+      );
 
-      try {
-        const policyResponse = await leavePolicyApi.getLeavePolicy();
-        setExcludeSundaysFromLeave(!!policyResponse.data.settings.exclude_sundays_from_leave);
-      } catch (policyError) {
-        console.log('Leave policy not available, using default leave day counting');
-      }
+      promises.push(
+        leavePolicyApi.getLeavePolicy().then(res => {
+          setExcludeSundaysFromLeave(!!res.data.settings.exclude_sundays_from_leave);
+        }).catch(err => {
+          console.log('Leave policy not available, using default leave day counting');
+        })
+      );
+
+      await Promise.allSettled(promises);
     } catch (error) {
       console.error('Failed to fetch leave data:', error);
       toast.error('Failed to load leave data');

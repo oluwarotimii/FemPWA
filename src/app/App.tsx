@@ -9,6 +9,7 @@ import { LeaveManagementScreen } from '@/app/components/screens/LeaveManagementS
 import { LeaveHistoryScreen } from '@/app/components/screens/LeaveHistoryScreen';
 import { NewLeaveRequestScreen } from '@/app/components/screens/NewLeaveRequestScreen';
 import { ShiftsManagementScreen } from '@/app/components/screens/ShiftsManagementScreen';
+import { ShiftExceptionManagementScreen } from '@/app/components/screens/ShiftExceptionManagementScreen';
 import { NotificationsScreen } from '@/app/components/screens/NotificationsScreen';
 import { FormsScreen } from '@/app/components/screens/FormsScreen';
 import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
@@ -153,6 +154,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ShiftsManagementScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/shift-exceptions"
+        element={
+          <ProtectedRoute>
+            <ShiftExceptionManagementScreen />
           </ProtectedRoute>
         }
       />

@@ -24,8 +24,10 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
           runtimeCaching: [
             {
+              // Only cache GET API requests; exclude POST/PUT/DELETE (attendance, leave submission, etc.)
               urlPattern: new RegExp(`^https:\\/\\/${apiDomain.replace(/\./g, '\\.')}\\/api\\/.*$`),
-              handler: 'NetworkFirst',
+              handler: 'StaleWhileRevalidate',
+              method: 'GET',
               options: {
                 cacheName: 'api-cache',
                 expiration: {
