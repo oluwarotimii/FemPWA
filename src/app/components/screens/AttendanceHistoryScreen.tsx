@@ -26,7 +26,7 @@ interface CalendarDayRecord {
   date: string;
   clockIn?: string;
   clockOut?: string;
-  status: "present" | "late" | "absent" | "early-departure" | "holiday" | "weekend" | "leave" | "half_day" | "future";
+  status: "present" | "late" | "absent" | "early-departure" | "holiday" | "weekend" | "leave" | "half_day";
   lateBy?: number;
   leftEarly?: number;
   isHoliday?: boolean;
@@ -37,7 +37,7 @@ interface CalendarDayRecord {
 const OFFICE_START = "09:00";
 const OFFICE_END = "17:00";
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   present: "bg-green-500/20 border-green-500",
   late: "bg-amber-500/20 border-amber-500",
   absent: "bg-red-500/20 border-red-500",
@@ -46,10 +46,9 @@ const statusColors = {
   weekend: "bg-gray-300/20 border-gray-300",
   leave: "bg-cyan-500/20 border-cyan-500",
   half_day: "bg-orange-500/20 border-orange-500",
-  future: "bg-gray-100/20 border-gray-200",
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   present: "Present",
   late: "Late",
   absent: "Absent",
@@ -58,7 +57,6 @@ const statusLabels = {
   weekend: "Weekend",
   leave: "On Leave",
   half_day: "Half Day",
-  future: "",
 };
 
 interface DayTileProps {
@@ -138,7 +136,7 @@ function StatsBar({ records }: StatsBarProps) {
     : 0;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-4">
       <Card className="p-2 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
         <div className="flex items-center gap-1.5">
           <UserCheck className="w-4 h-4 text-green-600" />
@@ -154,7 +152,17 @@ function StatsBar({ records }: StatsBarProps) {
           <Clock className="w-4 h-4 text-amber-600" />
           <div>
             <div className="text-lg font-bold text-amber-900">{stats.late}</div>
-            <div className="text-[10px] text-amber-700">Late Days</div>
+            <div className="text-[10px] text-amber-700">Late</div>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-2 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <div className="flex items-center gap-1.5">
+          <LogOut className="w-4 h-4 text-blue-600" />
+          <div>
+            <div className="text-lg font-bold text-blue-900">{stats.earlyDeparture}</div>
+            <div className="text-[10px] text-blue-700">Early Dep.</div>
           </div>
         </div>
       </Card>
@@ -171,10 +179,10 @@ function StatsBar({ records }: StatsBarProps) {
 
       <Card className="p-2 bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
         <div className="flex items-center gap-1.5">
-          <LogOut className="w-4 h-4 text-cyan-600" />
+          <Calendar className="w-4 h-4 text-cyan-600" />
           <div>
             <div className="text-lg font-bold text-cyan-900">{stats.leave + stats.halfDay}</div>
-            <div className="text-[10px] text-cyan-700">Leave/Half-Day</div>
+            <div className="text-[10px] text-cyan-700">Leave/½ Day</div>
           </div>
         </div>
       </Card>
@@ -184,7 +192,7 @@ function StatsBar({ records }: StatsBarProps) {
           <div className="w-4 h-4 text-purple-600 font-bold text-base">%</div>
           <div>
             <div className="text-lg font-bold text-purple-900">{attendanceRate}%</div>
-            <div className="text-[10px] text-purple-700">Attendance</div>
+            <div className="text-[10px] text-purple-700">Rate</div>
           </div>
         </div>
       </Card>
@@ -282,49 +290,47 @@ export function AttendanceHistoryScreen() {
         const monthEnd = endOfMonth(currentMonth);
         const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-        const calendarData: CalendarDayRecord[] = daysInMonth.map((day) => {
-          const dateStr = format(day, "yyyy-MM-dd");
-          const dayName = format(day, "eeee").toLowerCase();
-          const apiRecord = recordMap.get(dateStr);
+        const calendarData: CalendarDayRecord[] = daysInMonth
+          .map((day) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            const dayName = format(day, "eeee").toLowerCase();
+            const apiRecord = recordMap.get(dateStr);
 
-          if (apiRecord) {
+            if (apiRecord) {
+              return {
+                date: dateStr,
+                clockIn: apiRecord.check_in_time || undefined,
+                clockOut: apiRecord.check_out_time || undefined,
+                status: apiRecord.status as CalendarDayRecord["status"],
+                is_auto_checkout: apiRecord.is_auto_checkout,
+              };
+            }
+
+            // No record - check branch working days configuration
+            const dayConfig = branchWorkingDays[dayName];
+            const isWorkingDay = dayConfig ? dayConfig.is_working_day : true;
+            
+            if (!isWorkingDay) {
+              return {
+                date: dateStr,
+                status: "weekend",
+              };
+            }
+
+            // Future dates - no attendance data yet, don't mark
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (day > today) {
+              return null;
+            }
+
+            // Past working day with no record - mark as absent
             return {
               date: dateStr,
-              clockIn: apiRecord.check_in_time || undefined,
-              clockOut: apiRecord.check_out_time || undefined,
-              status: apiRecord.status as CalendarDayRecord["status"],
-              is_auto_checkout: apiRecord.is_auto_checkout,
+              status: "absent",
             };
-          }
-
-          // No record - check branch working days configuration
-          const dayConfig = branchWorkingDays[dayName];
-          const isWorkingDay = dayConfig ? dayConfig.is_working_day : true; // Default to true if not configured
-          
-          if (!isWorkingDay) {
-            return {
-              date: dateStr,
-              status: "weekend",
-            };
-          }
-
-          // Check if this is a future date
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (day > today) {
-            // Future date - don't mark as absent
-            return {
-              date: dateStr,
-              status: "future", // Light gray for future dates
-            };
-          }
-
-          // Past working day with no record - mark as absent
-          return {
-            date: dateStr,
-            status: "absent",
-          };
-        });
+          })
+          .filter((d): d is CalendarDayRecord => d !== null);
 
         setCalendarRecords(calendarData);
       } catch (error) {
@@ -368,10 +374,9 @@ export function AttendanceHistoryScreen() {
   };
 
   // Calculate summary statistics for list view
-  const presentDays = attendanceRecords.filter(record => record.status === 'present').length;
-  const lateDays = attendanceRecords.filter(record => record.status === 'late').length;
-  const onTimeDays = presentDays - lateDays;
-  const lateArrivals = lateDays;
+  const presentCount = attendanceRecords.filter(record => record.status === 'present').length;
+  const lateCount = attendanceRecords.filter(record => record.status === 'late').length;
+  const earlyDepartureCount = attendanceRecords.filter(record => record.status === 'early-departure').length;
 
   if (loading) {
     return (
@@ -543,11 +548,13 @@ export function AttendanceHistoryScreen() {
                         : record.status === 'absent'
                         ? 'bg-red-100 text-red-700 hover:bg-red-100'
                         : record.status === 'leave'
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                        ? 'bg-cyan-100 text-cyan-700 hover:bg-cyan-100'
                         : record.status === 'half_day'
-                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-100'
+                        ? 'bg-orange-100 text-orange-700 hover:bg-orange-100'
                         : record.status === 'holiday'
-                        ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100'
+                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-100'
+                        : record.status === 'early-departure'
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
                         : 'bg-red-100 text-red-700 hover:bg-red-100'
                     }`}
                   >
@@ -557,6 +564,7 @@ export function AttendanceHistoryScreen() {
                       : record.status === 'leave' ? 'On Leave'
                       : record.status === 'half_day' ? 'Half Day'
                       : record.status === 'holiday' ? 'Holiday'
+                      : record.status === 'early-departure' ? 'Early Departure'
                       : record.status}
                   </Badge>
                 </div>
@@ -728,8 +736,7 @@ export function AttendanceHistoryScreen() {
 
               {/* Expected Schedule */}
               {selectedDay.record?.status !== "weekend" &&
-                selectedDay.record?.status !== "holiday" &&
-                selectedDay.record?.status !== "future" && (
+                selectedDay.record?.status !== "holiday" && (
                   <Card className="p-4 bg-gray-50">
                     <div className="text-sm text-gray-700 font-medium mb-2">
                       Expected Schedule

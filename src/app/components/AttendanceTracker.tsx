@@ -27,22 +27,26 @@ const OFFICE_END = "17:00";
 const GRACE_PERIOD_MINUTES = 0; // No grace period, exactly 9:00 AM
 
 // Status color mapping
-const statusColors = {
+const statusColors: Record<string, string> = {
   present: "bg-green-500/20 border-green-500",
   late: "bg-amber-500/20 border-amber-500",
   absent: "bg-red-500/20 border-red-500",
   "early-departure": "bg-blue-500/20 border-blue-500",
   holiday: "bg-purple-500/20 border-purple-500",
   weekend: "bg-gray-300/20 border-gray-300",
+  leave: "bg-cyan-500/20 border-cyan-500",
+  half_day: "bg-orange-500/20 border-orange-500",
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   present: "Present",
   late: "Late",
   absent: "Absent",
   "early-departure": "Early Departure",
   holiday: "Holiday",
   weekend: "Weekend",
+  leave: "On Leave",
+  half_day: "Half Day",
 };
 
 interface DayTileProps {

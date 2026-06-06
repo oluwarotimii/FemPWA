@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, Plus, Pencil, Trash2, AlertCircle, ArrowLeft, Filter } from 'lucide-react';
+import { Calendar, Clock, Plus, Pencil, Trash2, AlertCircle, ArrowLeft, Filter, Users } from 'lucide-react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
@@ -15,6 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { Checkbox } from '@/app/components/ui/checkbox';
+import { ScrollArea } from '@/app/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { shiftApi, staffApi, type ShiftException } from '@/app/services/api';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -46,7 +48,7 @@ interface StaffOption {
 
 export function ShiftExceptionManagementScreen() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
 
   const canManage = hasPermission('shift-exception:create')
     || hasPermission('shift-exception:read')
@@ -59,7 +61,7 @@ export function ShiftExceptionManagementScreen() {
 
   const [exceptions, setExceptions] = useState<ShiftException[]>([]);
   const [staffList, setStaffList] = useState<StaffOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [startDate, setStartDate] = useState('');
@@ -72,8 +74,11 @@ export function ShiftExceptionManagementScreen() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ShiftException | null>(null);
 
+  const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
+  const [modalBranchFilter, setModalBranchFilter] = useState('');
+  const [modalStaffSearch, setModalStaffSearch] = useState('');
+
   const [formData, setFormData] = useState({
-    user_id: '',
     exception_date: '',
     exception_type: '',
     new_start_time: '',
@@ -82,17 +87,11 @@ export function ShiftExceptionManagementScreen() {
     reason: '',
   });
 
-  useEffect(() => {
-    loadStaffList();
-  }, []);
-
-  useEffect(() => {
-    loadExceptions();
-  }, []);
-
-  const loadStaffList = async () => {
+  const fetchStaff = async () => {
     try {
-      const response = await staffApi.getAllStaff({ limit: 500, status: 'active' });
+      const params: any = { limit: 500, status: 'active' };
+      if (user?.branchId) params.branchId = user.branchId;
+      const response = await staffApi.getAllStaff(params);
       setStaffList(response.data.staff.map((s: any) => ({
         user_id: s.user_id,
         full_name: s.full_name,
@@ -103,41 +102,48 @@ export function ShiftExceptionManagementScreen() {
       })));
     } catch (error) {
       console.error('Failed to load staff list:', error);
-      toast.error('Failed to load staff list');
     }
   };
 
-  const loadExceptions = useCallback(async () => {
+  const fetchExceptions = async (overrides?: { userId?: string; startDate?: string; endDate?: string }) => {
     try {
-      setLoading(true);
       const params: any = {};
-      if (selectedUserId) params.userId = parseInt(selectedUserId);
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      const uid = overrides?.userId !== undefined ? overrides.userId : selectedUserId;
+      const sd = overrides?.startDate !== undefined ? overrides.startDate : startDate;
+      const ed = overrides?.endDate !== undefined ? overrides.endDate : endDate;
+      if (uid) params.userId = parseInt(uid);
+      if (sd) params.startDate = sd;
+      if (ed) params.endDate = ed;
       const response = await shiftApi.getShiftExceptions(params);
       setExceptions(response.data.exceptions);
     } catch (error) {
       console.error('Failed to load exceptions:', error);
       toast.error('Failed to load shift exceptions');
-    } finally {
-      setLoading(false);
     }
-  }, [selectedUserId, startDate, endDate]);
+  };
+
+  useEffect(() => {
+    fetchStaff();
+    fetchExceptions().finally(() => setInitialLoading(false));
+  }, []);
 
   const handleFilter = () => {
-    loadExceptions();
+    fetchExceptions();
   };
 
   const handleClearFilters = () => {
     setSelectedUserId('');
     setStartDate('');
     setEndDate('');
+    fetchExceptions({ userId: '', startDate: '', endDate: '' });
   };
 
   const openCreateForm = () => {
     setEditException(null);
+    setSelectedStaffIds([]);
+    setModalBranchFilter('');
+    setModalStaffSearch('');
     setFormData({
-      user_id: selectedUserId || '',
       exception_date: '',
       exception_type: '',
       new_start_time: '',
@@ -150,8 +156,8 @@ export function ShiftExceptionManagementScreen() {
 
   const openEditForm = (exception: ShiftException) => {
     setEditException(exception);
+    setSelectedStaffIds([exception.user_id]);
     setFormData({
-      user_id: exception.user_id.toString(),
       exception_date: exception.exception_date.split('T')[0] || exception.exception_date,
       exception_type: exception.exception_type,
       new_start_time: exception.new_start_time || '',
@@ -162,14 +168,33 @@ export function ShiftExceptionManagementScreen() {
     setFormOpen(true);
   };
 
+  const toggleStaff = (userId: number) => {
+    setSelectedStaffIds(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const filteredModalStaff = staffList.filter(s => {
+    if (modalBranchFilter && s.department !== modalBranchFilter) return false;
+    if (modalStaffSearch && !s.full_name.toLowerCase().includes(modalStaffSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const departmentOptions = [...new Set(staffList.map(s => s.department).filter(Boolean))] as string[];
+
   const handleSave = async () => {
     if (!formData.exception_date || !formData.exception_type) {
       toast.error('Date and type are required');
       return;
     }
 
-    if (!editException && !formData.user_id) {
-      toast.error('Please select a staff member');
+    if (!editException && selectedStaffIds.length === 0) {
+      toast.error('Please select at least one staff member');
+      return;
+    }
+
+    if (editException && selectedStaffIds.length === 0) {
+      toast.error('Staff member is required');
       return;
     }
 
@@ -188,15 +213,20 @@ export function ShiftExceptionManagementScreen() {
         await shiftApi.updateShiftException(editException.id, payload);
         toast.success('Shift exception updated');
       } else {
-        await shiftApi.createShiftException({
-          ...payload,
-          user_id: parseInt(formData.user_id),
-        });
-        toast.success('Shift exception created');
+        let created = 0;
+        for (const uid of selectedStaffIds) {
+          try {
+            await shiftApi.createShiftException({ ...payload, user_id: uid });
+            created++;
+          } catch (e: any) {
+            toast.error(`Failed for user #${uid}: ${e.response?.data?.message || e.message}`);
+          }
+        }
+        toast.success(`${created} of ${selectedStaffIds.length} exceptions created`);
       }
 
       setFormOpen(false);
-      loadExceptions();
+      fetchExceptions();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to save shift exception');
     } finally {
@@ -216,7 +246,7 @@ export function ShiftExceptionManagementScreen() {
       toast.success('Shift exception deleted');
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
-      loadExceptions();
+      fetchExceptions();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete shift exception');
     }
@@ -232,10 +262,7 @@ export function ShiftExceptionManagementScreen() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
     });
   };
 
@@ -287,29 +314,17 @@ export function ShiftExceptionManagementScreen() {
               >
                 <option value="">All Staff</option>
                 {staffList.map((s) => (
-                  <option key={s.user_id} value={s.user_id}>
-                    {s.full_name}
-                  </option>
+                  <option key={s.user_id} value={s.user_id}>{s.full_name}</option>
                 ))}
               </select>
             </div>
             <div className="w-[140px]">
               <Label className="text-xs text-gray-500 mb-1 block">From</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 text-sm"
-              />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 text-sm" />
             </div>
             <div className="w-[140px]">
               <Label className="text-xs text-gray-500 mb-1 block">To</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 text-sm"
-              />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 text-sm" />
             </div>
             <Button onClick={handleFilter} size="sm" variant="outline" className="h-9">
               <Filter className="w-4 h-4 mr-1" /> Filter
@@ -324,7 +339,7 @@ export function ShiftExceptionManagementScreen() {
       </div>
 
       <div className="p-4 pb-24 space-y-3">
-        {loading ? (
+        {initialLoading ? (
           <Card>
             <CardContent className="p-8 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1A2B3C] mx-auto" />
@@ -364,55 +379,37 @@ export function ShiftExceptionManagementScreen() {
                         <p className="text-sm font-semibold text-gray-900">
                           {exception.user_name || getStaffName(exception.user_id)}
                         </p>
-                        <p className="text-xs text-gray-500">
-                          {formatDate(exception.exception_date)}
-                        </p>
+                        <p className="text-xs text-gray-500">{formatDate(exception.exception_date)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={STATUS_VARIANTS[exception.status] || 'secondary'}>
-                        {exception.status}
-                      </Badge>
+                      <Badge variant={STATUS_VARIANTS[exception.status] || 'secondary'}>{exception.status}</Badge>
                       {canEdit && (
-                        <button
-                          onClick={() => openEditForm(exception)}
-                          className="p-1.5 hover:bg-gray-100 rounded"
-                        >
+                        <button onClick={() => openEditForm(exception)} className="p-1.5 hover:bg-gray-100 rounded">
                           <Pencil className="w-4 h-4 text-gray-500" />
                         </button>
                       )}
                       {canDelete && (
-                        <button
-                          onClick={() => openDeleteConfirm(exception)}
-                          className="p-1.5 hover:bg-red-50 rounded"
-                        >
+                        <button onClick={() => openDeleteConfirm(exception)} className="p-1.5 hover:bg-red-50 rounded">
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
                       )}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {getExceptionTypeLabel(exception.exception_type)}
-                      </Badge>
-                    </div>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {getExceptionTypeLabel(exception.exception_type)}
+                    </Badge>
                     <div className="flex items-center gap-2 text-sm text-gray-700">
                       <Clock className="w-4 h-4 text-gray-400" />
                       <span className="font-medium">
                         {formatTime(exception.new_start_time)} - {formatTime(exception.new_end_time)}
                       </span>
                       {exception.new_break_duration_minutes > 0 && (
-                        <span className="text-xs text-gray-500">
-                          ({exception.new_break_duration_minutes}min break)
-                        </span>
+                        <span className="text-xs text-gray-500">({exception.new_break_duration_minutes}min break)</span>
                       )}
                     </div>
-                    {exception.reason && (
-                      <div className="text-xs text-gray-600 italic">
-                        {exception.reason}
-                      </div>
-                    )}
+                    {exception.reason && <div className="text-xs text-gray-600 italic">{exception.reason}</div>}
                   </div>
                 </CardContent>
               </Card>
@@ -425,40 +422,95 @@ export function ShiftExceptionManagementScreen() {
         <DialogContent className="max-w-[95vw] sm:max-w-lg mx-2 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg">
-              {editException ? 'Edit Shift Exception' : 'Create Shift Exception'}
+              {editException ? 'Edit Shift Exception' : 'Create Shift Exception(s)'}
             </DialogTitle>
             <DialogDescription className="text-sm">
               {editException
                 ? 'Update the details of this shift exception.'
-                : 'Create a new shift exception for a staff member.'}
+                : 'Select staff members and set the exception details.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-4">
+            {/* Staff selection */}
             {!editException && (
               <div>
                 <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                  Staff Member *
+                  Staff Members * ({selectedStaffIds.length} selected)
                 </Label>
-                <select
-                  value={formData.user_id}
-                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
-                  className="w-full h-10 px-3 rounded-md border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1A2B3C]/20"
-                >
-                  <option value="">Select staff member</option>
-                  {staffList.map((s) => (
-                    <option key={s.user_id} value={s.user_id}>
-                      {s.full_name} {s.department ? `(${s.department})` : ''}
-                    </option>
-                  ))}
-                </select>
+
+                {/* Branch filter + search */}
+                <div className="flex gap-2 mb-2">
+                  {departmentOptions.length > 0 && (
+                    <select
+                      value={modalBranchFilter}
+                      onChange={(e) => setModalBranchFilter(e.target.value)}
+                      className="flex-1 h-9 px-2 rounded-md border border-gray-300 text-xs bg-white"
+                    >
+                      <option value="">All Departments</option>
+                      {departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  )}
+                  <Input
+                    placeholder="Search staff..."
+                    value={modalStaffSearch}
+                    onChange={(e) => setModalStaffSearch(e.target.value)}
+                    className="flex-1 h-9 text-xs"
+                  />
+                </div>
+
+                <ScrollArea className="h-48 rounded-md border border-gray-200 p-2">
+                  {filteredModalStaff.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-8">No staff found</p>
+                  ) : (
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs font-medium text-gray-600 border-b border-gray-100 mb-1">
+                        <Checkbox
+                          checked={filteredModalStaff.every(s => selectedStaffIds.includes(s.user_id))}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedStaffIds(filteredModalStaff.map(s => s.user_id));
+                            else setSelectedStaffIds(prev => prev.filter(id => !filteredModalStaff.some(s => s.user_id === id)));
+                          }}
+                        />
+                        <span>Select All ({filteredModalStaff.length})</span>
+                      </label>
+                      {filteredModalStaff.map((s) => (
+                        <label
+                          key={s.user_id}
+                          className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"
+                        >
+                          <Checkbox
+                            checked={selectedStaffIds.includes(s.user_id)}
+                            onCheckedChange={() => toggleStaff(s.user_id)}
+                          />
+                          <span className="flex-1">{s.full_name}</span>
+                          {s.department && <span className="text-xs text-gray-400">{s.department}</span>}
+                          {s.employee_id && <span className="text-xs text-gray-400">#{s.employee_id}</span>}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+
+                {selectedStaffIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {selectedStaffIds.map(id => {
+                      const s = staffList.find(st => st.user_id === id);
+                      return s ? (
+                        <Badge key={id} variant="secondary" className="text-xs">
+                          {s.full_name}
+                          <button className="ml-1 hover:text-red-500" onClick={() => toggleStaff(id)}>×</button>
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Date */}
             <div>
-              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                Exception Date *
-              </Label>
+              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Exception Date *</Label>
               <Input
                 type="date"
                 value={formData.exception_date}
@@ -467,10 +519,9 @@ export function ShiftExceptionManagementScreen() {
               />
             </div>
 
+            {/* Type */}
             <div>
-              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                Exception Type *
-              </Label>
+              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Exception Type *</Label>
               <select
                 value={formData.exception_type}
                 onChange={(e) => setFormData({ ...formData, exception_type: e.target.value })}
@@ -483,73 +534,41 @@ export function ShiftExceptionManagementScreen() {
               </select>
             </div>
 
+            {/* Times */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                  Start Time
-                </Label>
-                <Input
-                  type="time"
-                  value={formData.new_start_time}
-                  onChange={(e) => setFormData({ ...formData, new_start_time: e.target.value })}
-                  className="h-10"
-                />
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Start Time</Label>
+                <Input type="time" value={formData.new_start_time}
+                  onChange={(e) => setFormData({ ...formData, new_start_time: e.target.value })} className="h-10" />
               </div>
               <div>
-                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                  End Time
-                </Label>
-                <Input
-                  type="time"
-                  value={formData.new_end_time}
-                  onChange={(e) => setFormData({ ...formData, new_end_time: e.target.value })}
-                  className="h-10"
-                />
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">End Time</Label>
+                <Input type="time" value={formData.new_end_time}
+                  onChange={(e) => setFormData({ ...formData, new_end_time: e.target.value })} className="h-10" />
               </div>
             </div>
 
+            {/* Break */}
             <div>
-              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                Break Duration (minutes)
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                max={180}
-                value={formData.new_break_duration_minutes}
-                onChange={(e) => setFormData({ ...formData, new_break_duration_minutes: parseInt(e.target.value) || 0 })}
-                className="h-10"
-              />
+              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Break Duration (minutes)</Label>
+              <Input type="number" min={0} max={180} value={formData.new_break_duration_minutes}
+                onChange={(e) => setFormData({ ...formData, new_break_duration_minutes: parseInt(e.target.value) || 0 })} className="h-10" />
             </div>
 
+            {/* Reason */}
             <div>
-              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                Reason
-              </Label>
-              <Textarea
-                value={formData.reason}
-                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                rows={3}
-                placeholder="Optional reason for this exception"
-              />
+              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Reason</Label>
+              <Textarea value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                rows={3} placeholder="Optional reason for this exception" />
             </div>
           </div>
 
           <DialogFooter className="gap-2 sticky bottom-0 bg-white pt-3 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setFormOpen(false)}
-              disabled={saving}
-              className="text-xs sm:text-sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-[#1A2B3C] hover:bg-[#2C3E50] text-xs sm:text-sm"
-            >
-              {saving ? 'Saving...' : editException ? 'Update' : 'Create'}
+            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}
+              className="text-xs sm:text-sm">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}
+              className="bg-[#1A2B3C] hover:bg-[#2C3E50] text-xs sm:text-sm">
+              {saving ? 'Saving...' : editException ? 'Update' : `Create (${selectedStaffIds.length})`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -573,19 +592,10 @@ export function ShiftExceptionManagementScreen() {
           )}
 
           <DialogFooter className="gap-2 sticky bottom-0 bg-white pt-3 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmOpen(false)}
-              className="text-xs sm:text-sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm"
-            >
-              Delete
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}
+              className="text-xs sm:text-sm">Cancel</Button>
+            <Button onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm">Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
