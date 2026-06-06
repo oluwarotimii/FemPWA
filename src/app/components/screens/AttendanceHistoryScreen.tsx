@@ -283,8 +283,8 @@ export function AttendanceHistoryScreen() {
         // Use raw date string for map keys to avoid timezone shifting
         const recordMap = new Map(
           deduplicatedRecords.map((r) => {
-            const localDateStr = r.date.split('T')[0];
-            return [localDateStr, r];
+            const rawDateStr = r.date.includes('T') ? r.date.split('T')[0] : r.date;
+            return [rawDateStr, r];
           })
         );
 
