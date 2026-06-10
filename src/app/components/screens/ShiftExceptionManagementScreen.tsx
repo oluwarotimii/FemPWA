@@ -92,7 +92,8 @@ export function ShiftExceptionManagementScreen() {
       const params: any = { limit: 500, status: 'active' };
       if (user?.branchId) params.branchId = user.branchId;
       const response = await staffApi.getAllStaff(params);
-      setStaffList(response.data.staff.map((s: any) => ({
+      const staff = response.data?.staff || response.data?.employees || [];
+      setStaffList(staff.map((s: any) => ({
         user_id: s.user_id,
         full_name: s.full_name,
         email: s.email,
@@ -100,8 +101,10 @@ export function ShiftExceptionManagementScreen() {
         designation: s.designation,
         department: s.department,
       })));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load staff list:', error);
+      const msg = error?.response?.data?.message || error?.message || 'Failed to load staff list';
+      toast.error(msg);
     }
   };
 
