@@ -187,10 +187,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('authToken', token);
         localStorage.setItem('userId', userData.id.toString());
         localStorage.setItem('rememberMe', 'true');
-        // Set token expiry to 30 days (access token expires before refresh token)
-        const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
+        // Set token expiry to 90 days (matches backend JWT_EXPIRES_IN)
+        const expiryTime = Date.now() + (90 * 24 * 60 * 60 * 1000);
         localStorage.setItem('tokenExpiry', expiryTime.toString());
-        console.log('Persistent login enabled - expires in 30 days');
+        console.log('Persistent login enabled - expires in 90 days');
       } else {
         // Session-only login (expires when browser closes)
         sessionStorage.setItem('authToken', token);
