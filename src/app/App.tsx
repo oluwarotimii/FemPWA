@@ -21,6 +21,7 @@ import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { DevTools } from '@/app/components/DevTools';
 import { GuarantorPage } from '@/app/pages/GuarantorPage';
+import { NotFoundScreen } from '@/app/components/screens/NotFoundScreen';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -214,6 +215,7 @@ function AppRoutes() {
         }
       />
       <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<NotFoundScreen />} />
     </Routes>
   );
 }
