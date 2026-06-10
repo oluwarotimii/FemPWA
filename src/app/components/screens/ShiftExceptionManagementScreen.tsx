@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, Plus, Pencil, Trash2, AlertCircle, ArrowLeft, Filter, Users } from 'lucide-react';
+import { Calendar, Clock, Plus, Pencil, Trash2, AlertCircle, ArrowLeft, Filter, Users, Zap, CheckCircle } from 'lucide-react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
@@ -87,6 +87,56 @@ export function ShiftExceptionManagementScreen() {
     reason: '',
   });
 
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [bulkDates, setBulkDates] = useState<Date[]>([]);
+  const [bulkConfig, setBulkConfig] = useState({
+    recurrence_pattern: 'weekly',
+    recurrence_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as string[],
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  });
+
+  const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const dayLabels: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+
+  const calculateBulkDates = () => {
+    try {
+      const dates: Date[] = [];
+      const start = new Date(bulkConfig.start_date);
+      const end = new Date(bulkConfig.end_date);
+      const sel = bulkConfig.recurrence_days;
+      const dayMap: Record<string, string> = {
+        sun: 'sunday', mon: 'monday', tue: 'tuesday', wed: 'wednesday',
+        thu: 'thursday', fri: 'friday', sat: 'saturday'
+      };
+      let cur = new Date(start);
+      while (cur <= end) {
+        const shortDay = cur.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+        const fullDay = dayMap[shortDay];
+        if (bulkConfig.recurrence_pattern === 'daily' || sel.includes(fullDay)) {
+          dates.push(new Date(cur));
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      setBulkDates(dates);
+    } catch {
+      setBulkDates([]);
+    }
+  };
+
+  useEffect(() => {
+    if (isBulkMode) calculateBulkDates();
+  }, [isBulkMode, bulkConfig.recurrence_pattern, bulkConfig.recurrence_days, bulkConfig.start_date, bulkConfig.end_date]);
+
+  const toggleBulkDay = (day: string) => {
+    setBulkConfig(prev => ({
+      ...prev,
+      recurrence_days: prev.recurrence_days.includes(day)
+        ? prev.recurrence_days.filter(d => d !== day)
+        : [...prev.recurrence_days, day]
+    }));
+  };
+
   const fetchStaff = async () => {
     try {
       const params: any = { limit: 500, status: 'active' };
@@ -146,6 +196,14 @@ export function ShiftExceptionManagementScreen() {
     setSelectedStaffIds([]);
     setModalBranchFilter('');
     setModalStaffSearch('');
+    setIsBulkMode(false);
+    setBulkDates([]);
+    setBulkConfig({
+      recurrence_pattern: 'weekly',
+      recurrence_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    });
     setFormData({
       exception_date: '',
       exception_type: '',
@@ -186,8 +244,8 @@ export function ShiftExceptionManagementScreen() {
   const departmentOptions = [...new Set(staffList.map(s => s.department).filter(Boolean))] as string[];
 
   const handleSave = async () => {
-    if (!formData.exception_date || !formData.exception_type) {
-      toast.error('Date and type are required');
+    if (!formData.exception_type) {
+      toast.error('Exception type is required');
       return;
     }
 
@@ -201,10 +259,25 @@ export function ShiftExceptionManagementScreen() {
       return;
     }
 
+    const datesToCreate = editException
+      ? [formData.exception_date]
+      : isBulkMode
+        ? bulkDates.map(d => d.toISOString().split('T')[0])
+        : [formData.exception_date];
+
+    if (!editException && datesToCreate.length === 0) {
+      toast.error(isBulkMode ? 'No dates match the selected pattern' : 'Exception date is required');
+      return;
+    }
+
+    if (!editException && !isBulkMode && !formData.exception_date) {
+      toast.error('Exception date is required');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
-        exception_date: formData.exception_date,
         exception_type: formData.exception_type,
         new_start_time: formData.new_start_time || undefined,
         new_end_time: formData.new_end_time || undefined,
@@ -213,19 +286,22 @@ export function ShiftExceptionManagementScreen() {
       };
 
       if (editException) {
-        await shiftApi.updateShiftException(editException.id, payload);
+        await shiftApi.updateShiftException(editException.id, { ...payload, exception_date: formData.exception_date });
         toast.success('Shift exception updated');
       } else {
         let created = 0;
+        const total = selectedStaffIds.length * datesToCreate.length;
         for (const uid of selectedStaffIds) {
-          try {
-            await shiftApi.createShiftException({ ...payload, user_id: uid });
-            created++;
-          } catch (e: any) {
-            toast.error(`Failed for user #${uid}: ${e.response?.data?.message || e.message}`);
+          for (const dateStr of datesToCreate) {
+            try {
+              await shiftApi.createShiftException({ ...payload, user_id: uid, exception_date: dateStr });
+              created++;
+            } catch (e: any) {
+              toast.error(`Failed for user #${uid} on ${dateStr}: ${e.response?.data?.message || e.message}`);
+            }
           }
         }
-        toast.success(`${created} of ${selectedStaffIds.length} exceptions created`);
+        toast.success(`${created} of ${total} exceptions created`);
       }
 
       setFormOpen(false);
@@ -430,7 +506,9 @@ export function ShiftExceptionManagementScreen() {
             <DialogDescription className="text-sm">
               {editException
                 ? 'Update the details of this shift exception.'
-                : 'Select staff members and set the exception details.'}
+                : isBulkMode
+                  ? 'Create exceptions across multiple dates for selected staff members.'
+                  : 'Select staff members and set the exception details.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -511,16 +589,101 @@ export function ShiftExceptionManagementScreen() {
               </div>
             )}
 
-            {/* Date */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Exception Date *</Label>
-              <Input
-                type="date"
-                value={formData.exception_date}
-                onChange={(e) => setFormData({ ...formData, exception_date: e.target.value })}
-                className="h-10"
-              />
-            </div>
+            {/* Bulk mode toggle */}
+            {!editException && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-purple-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Bulk Exception Creation</p>
+                    <p className="text-xs text-gray-500">{isBulkMode ? 'Create exceptions for multiple dates at once' : 'Create exception for a single date'}</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only" checked={isBulkMode}
+                    onChange={e => setIsBulkMode(e.target.checked)} />
+                  <div className={`w-10 h-5.5 rounded-full transition-colors ${isBulkMode ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                    <div className={`w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${isBulkMode ? 'translate-x-[18px]' : 'translate-x-0.5'}`} style={{ marginTop: '2px', width: '18px', height: '18px' }} />
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Date / Bulk config */}
+            {!editException && isBulkMode ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                <Label className="text-sm font-medium text-gray-700">Recurrence Pattern</Label>
+                <select
+                  value={bulkConfig.recurrence_pattern}
+                  onChange={e => {
+                    const p = e.target.value as 'daily' | 'weekly';
+                    setBulkConfig(prev => ({
+                      ...prev,
+                      recurrence_pattern: p,
+                      recurrence_days: p === 'daily' ? daysOfWeek : prev.recurrence_days
+                    }));
+                  }}
+                  className="w-full h-10 px-3 rounded-md border border-gray-300 text-sm bg-white"
+                >
+                  <option value="daily">Daily (Every day)</option>
+                  <option value="weekly">Weekly (Select specific days)</option>
+                </select>
+
+                {bulkConfig.recurrence_pattern === 'weekly' && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Select Days</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {daysOfWeek.map(d => (
+                        <button key={d} type="button"
+                          onClick={() => toggleBulkDay(d)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                            bulkConfig.recurrence_days.includes(d)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {dayLabels[d]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Start Date</Label>
+                    <Input type="date" value={bulkConfig.start_date}
+                      onChange={e => setBulkConfig({ ...bulkConfig, start_date: e.target.value })}
+                      className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">End Date</Label>
+                    <Input type="date" value={bulkConfig.end_date}
+                      onChange={e => setBulkConfig({ ...bulkConfig, end_date: e.target.value })}
+                      className="h-10" />
+                  </div>
+                </div>
+
+                {bulkDates.length > 0 && (
+                  <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <p className="text-sm font-semibold text-green-800">
+                      Will create {bulkDates.length} date{bulkDates.length !== 1 ? 's' : ''} per staff member
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Exception Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.exception_date}
+                  onChange={(e) => setFormData({ ...formData, exception_date: e.target.value })}
+                  className="h-10"
+                />
+              </div>
+            )}
 
             {/* Type */}
             <div>
@@ -571,7 +734,10 @@ export function ShiftExceptionManagementScreen() {
               className="text-xs sm:text-sm">Cancel</Button>
             <Button onClick={handleSave} disabled={saving}
               className="bg-[#1A2B3C] hover:bg-[#2C3E50] text-xs sm:text-sm">
-              {saving ? 'Saving...' : editException ? 'Update' : `Create (${selectedStaffIds.length})`}
+              {saving ? 'Saving...' : editException ? 'Update' : isBulkMode
+                ? `Create (${selectedStaffIds.length} staff × ${bulkDates.length} dates)`
+                : `Create (${selectedStaffIds.length} staff)`
+              }
             </Button>
           </DialogFooter>
         </DialogContent>
