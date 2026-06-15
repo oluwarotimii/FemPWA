@@ -3,9 +3,12 @@ import { AuthProvider, useAuth } from '@/app/contexts/AuthContext';
 import { PWAProvider } from '@/app/contexts/PWAContext';
 import { Toaster } from '@/app/components/ui/sonner';
 import { LoginScreen } from '@/app/components/screens/LoginScreen';
+import { ForgotPasswordScreen } from '@/app/components/screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '@/app/components/screens/ResetPasswordScreen';
 import { DashboardScreen } from '@/app/components/screens/DashboardScreen';
 import { AttendanceHistoryScreen } from '@/app/components/screens/AttendanceHistoryScreen';
 import { LeaveManagementScreen } from '@/app/components/screens/LeaveManagementScreen';
+import { LeaveRequestManagementScreen } from '@/app/components/screens/LeaveRequestManagementScreen';
 import { LeaveHistoryScreen } from '@/app/components/screens/LeaveHistoryScreen';
 import { NewLeaveRequestScreen } from '@/app/components/screens/NewLeaveRequestScreen';
 import { ShiftsManagementScreen } from '@/app/components/screens/ShiftsManagementScreen';
@@ -95,6 +98,8 @@ function AppRoutes() {
           isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginScreen />
         }
       />
+      <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
+      <Route path="/reset-password" element={<ResetPasswordScreen />} />
       <Route
         path="/change-password"
         element={
@@ -131,6 +136,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <LeaveManagementScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manage-leave-requests"
+        element={
+          <ProtectedRoute>
+            <LeaveRequestManagementScreen />
           </ProtectedRoute>
         }
       />

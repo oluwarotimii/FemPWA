@@ -284,7 +284,12 @@ export function ShiftsManagementScreen() {
     </div>
   );
 
-  const renderExceptionsTab = () => (
+  const renderExceptionsTab = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const upcomingExceptions = myExceptions.filter(ex => new Date(ex.exception_date) >= today);
+
+    return (
     <div className="space-y-4 pb-20">
       <Card className="bg-purple-50 border-purple-200">
         <CardContent className="p-4">
@@ -292,7 +297,7 @@ export function ShiftsManagementScreen() {
             <AlertCircle className="w-5 h-5 text-purple-600 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-purple-900">Shift Exceptions</p>
-              <p className="text-xs text-purple-700 mt-1">Special schedule changes or extra shifts assigned to you.</p>
+              <p className="text-xs text-purple-700 mt-1">Upcoming special schedule changes or extra shifts.</p>
             </div>
           </div>
         </CardContent>
@@ -300,11 +305,11 @@ export function ShiftsManagementScreen() {
 
       {loading ? (
         <Card><CardContent className="p-8 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1A2B3C] mx-auto" /><p className="text-sm text-gray-600 mt-2">Loading...</p></CardContent></Card>
-      ) : myExceptions.length === 0 ? (
-        <Card><CardContent className="p-8 text-center"><Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" /><p className="text-sm font-medium text-gray-900 mb-1">No exceptions found</p><p className="text-xs text-gray-600">You don't have any special shift exceptions assigned.</p></CardContent></Card>
+      ) : upcomingExceptions.length === 0 ? (
+        <Card><CardContent className="p-8 text-center"><Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" /><p className="text-sm font-medium text-gray-900 mb-1">No upcoming exceptions</p><p className="text-xs text-gray-600">You don't have any upcoming special shift exceptions.</p></CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {myExceptions.map((exception) => (
+          {upcomingExceptions.map((exception) => (
             <Card key={exception.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -339,6 +344,7 @@ export function ShiftsManagementScreen() {
       )}
     </div>
   );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
