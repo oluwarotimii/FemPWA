@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Checkbox } from '@/app/components/ui/checkbox';
@@ -122,8 +122,11 @@ export function LoginScreen() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="text-center">
-              <a href="#" className="text-sm text-blue-600 hover:underline">
+            <div className="text-center space-y-2">
+              <Link to="/forgot-password" className="block text-sm text-blue-600 hover:underline">
+                Forgot Password?
+              </Link>
+              <a href="#" className="block text-sm text-blue-600 hover:underline">
                 Need help?
               </a>
             </div>

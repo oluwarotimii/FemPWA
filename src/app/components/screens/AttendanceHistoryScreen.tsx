@@ -38,14 +38,14 @@ const OFFICE_START = "09:00";
 const OFFICE_END = "17:00";
 
 const statusColors: Record<string, string> = {
-  present: "bg-green-500/20 border-green-500",
-  late: "bg-amber-500/20 border-amber-500",
-  absent: "bg-red-500/20 border-red-500",
-  "early-departure": "bg-blue-500/20 border-blue-500",
-  holiday: "bg-purple-500/20 border-purple-500",
-  weekend: "bg-gray-300/20 border-gray-300",
-  leave: "bg-cyan-500/20 border-cyan-500",
-  half_day: "bg-orange-500/20 border-orange-500",
+  present: "bg-green-500/40 border-green-600",
+  late: "bg-amber-500/40 border-amber-600",
+  absent: "bg-red-500/40 border-red-600",
+  "early-departure": "bg-blue-500/40 border-blue-600",
+  holiday: "bg-purple-500/40 border-purple-600",
+  weekend: "bg-gray-300/40 border-gray-400",
+  leave: "bg-cyan-500/40 border-cyan-600",
+  half_day: "bg-orange-500/40 border-orange-600",
 };
 
 const statusLabels: Record<string, string> = {
@@ -89,7 +89,7 @@ function DayTile({ day, record, isToday, onClick }: DayTileProps) {
       }`}
     >
       <div className="flex flex-col h-full justify-between">
-        <div className="text-xs font-semibold text-gray-900">{dayNumber}</div>
+        <div className="text-sm font-bold text-gray-900">{dayNumber}</div>
         {record.clockIn && (
           <div className="text-[8px] text-gray-700 font-medium">
             {record.clockIn}

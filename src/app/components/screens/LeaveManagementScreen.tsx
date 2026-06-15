@@ -247,6 +247,17 @@ export function LeaveManagementScreen() {
           </p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          {(hasPermission('leave:read') || hasPermission('leave:update') || hasPermission('leave:approve')) && (
+            <Button
+              onClick={() => navigate('/manage-leave-requests')}
+              variant="outline"
+              className="h-9 px-3 text-xs"
+              size="sm"
+            >
+              <FileText className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Manage</span>
+            </Button>
+          )}
           <Button
             onClick={() => navigate('/new-leave')}
             className="bg-[#1A2B3C] hover:bg-[#2C3E50] text-white h-9 px-3"
@@ -462,17 +473,7 @@ export function LeaveManagementScreen() {
         </TabsContent>
       </Tabs>
 
-      {/* Floating Action Button */}
-      <div className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 flex flex-col gap-2 sm:gap-3 z-10">
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => navigate('/new-leave')}
-          className="w-12 h-12 sm:w-14 sm:h-14 bg-[#1A2B3C] hover:bg-[#2C3E50] text-white rounded-full shadow-lg flex items-center justify-center"
-        >
-          <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
-        </motion.button>
-      </div>
+
 
       {/* Action Dialog */}
       <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>

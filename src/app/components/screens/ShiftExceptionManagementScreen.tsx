@@ -425,7 +425,10 @@ export function ShiftExceptionManagementScreen() {
               <p className="text-sm text-gray-600 mt-2">Loading...</p>
             </CardContent>
           </Card>
-        ) : exceptions.length === 0 ? (
+        ) : (() => {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const upcomingExceptions = exceptions.filter(ex => new Date(ex.exception_date) >= today);
+          return upcomingExceptions.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
@@ -443,7 +446,7 @@ export function ShiftExceptionManagementScreen() {
             </CardContent>
           </Card>
         ) : (
-          exceptions.map((exception) => {
+          upcomingExceptions.map((exception) => {
             const isExpired = exception.status === 'expired';
             const isRejected = exception.status === 'rejected';
             return (
@@ -494,7 +497,7 @@ export function ShiftExceptionManagementScreen() {
               </Card>
             );
           })
-        )}
+        )})()}
       </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
