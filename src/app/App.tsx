@@ -20,6 +20,7 @@ import { ChangePasswordScreen } from './components/screens/ChangePasswordScreen'
 import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
 import { StaffDetailsFormScreen } from '@/app/components/screens/StaffDetailsFormScreen';
 import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
+import { FloatingDayScreen } from '@/app/components/screens/FloatingDayScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { DevTools } from '@/app/components/DevTools';
@@ -216,6 +217,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <HolidaysScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/floating-days"
+        element={
+          <ProtectedRoute>
+            <FloatingDayScreen />
           </ProtectedRoute>
         }
       />
