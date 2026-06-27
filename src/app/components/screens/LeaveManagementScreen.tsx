@@ -302,6 +302,24 @@ export function LeaveManagementScreen() {
         <div className="text-center py-4 text-gray-500 text-sm">No leave balances available</div>
       )}
 
+      {/* Time Off Card */}
+      <Card
+        onClick={() => navigate('/floating-days')}
+        className="shadow-md bg-orange-600 cursor-pointer hover:bg-orange-700 transition-all"
+      >
+        <CardContent className="p-3 sm:p-4 text-white flex items-center justify-between">
+          <div>
+            <div className="text-base sm:text-lg font-bold">Time Off</div>
+            <div className="text-xs text-orange-100 mt-0.5">Use this for compensatory day off instead of regular leave</div>
+          </div>
+          <div className="bg-white/20 rounded-full p-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Statistics Cards - Personal stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <Card className="shadow-sm">
