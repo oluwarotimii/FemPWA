@@ -4,7 +4,6 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
-import { Checkbox } from '@/app/components/ui/checkbox';
 import { toast } from 'sonner';
 
 export function LoginScreen() {
@@ -13,7 +12,6 @@ export function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,9 +19,7 @@ export function LoginScreen() {
     setLoading(true);
 
     try {
-      // The login function returns the user object on success
-      // and throws an error on failure.
-      const user = await login(email, password, rememberMe);
+      const user = await login(email, password);
 
       if (user) {
         toast.success('Login successful!');
@@ -31,18 +27,16 @@ export function LoginScreen() {
         navigate('/dashboard');
       }
     } catch (error: any) {
-      // Handle thrown errors from the login function
       console.error('Login error details:', error);
-      
-      // Use a more descriptive error message if available
+
       let errorMessage = 'Invalid credentials. Please try again.';
-      
+
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -101,17 +95,6 @@ export function LoginScreen() {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-            </div>
-
-            <div className="flex items-center">
-              <Checkbox
-                id="remember"
-                checked={rememberMe}
-                onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-              />
-              <label htmlFor="remember" className="ml-2 text-sm text-gray-600">
-                Stay logged in
-              </label>
             </div>
 
             <Button

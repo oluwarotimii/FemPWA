@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Edit, User, Briefcase, MapPin, Calendar, Moon, Sun, Bell, Lock, LogOut, Mail, Phone, Home, Banknote, GraduationCap, AlertCircle, FileCheck, Building2, Users } from 'lucide-react';
+import { Edit, User, Briefcase, MapPin, Calendar, Moon, Sun, Bell, Lock, LogOut, Mail, Phone, Home, Banknote, GraduationCap, AlertCircle, FileCheck, Building2, Users, FileText, Upload, Trash2, Download } from 'lucide-react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Switch } from '@/app/components/ui/switch';
@@ -9,7 +9,7 @@ import { Separator } from '@/app/components/ui/separator';
 import { Badge } from '@/app/components/ui/badge';
 import { toast } from 'sonner';
 import apiClient from '@/app/services/api/apiClient';
-import { branchesApi, type Branch } from '@/app/services/api';
+import { branchesApi, type Branch, staffApi } from '@/app/services/api';
 
 interface StaffDetails {
   id: number;
@@ -70,6 +70,10 @@ export function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
+  const [cvDocuments, setCvDocuments] = useState<any[]>([]);
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvLoading, setCvLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchStaffDetails = async () => {
@@ -111,6 +115,96 @@ export function ProfileScreen() {
       setLoading(false);
     }
   }, [user]);
+
+  // Fetch own CV/documents
+  const fetchDocuments = async () => {
+    try {
+      setCvLoading(true);
+      const response = await staffApi.getOwnDocuments();
+      if (response.success) {
+        const docs = (response.data?.documents || []).filter(
+          (d: any) => d.document_type === 'Resume/CV'
+        );
+        setCvDocuments(docs);
+      }
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+    } finally {
+      setCvLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchDocuments();
+    }
+  }, [user]);
+
+  const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File too large', { description: 'Maximum file size is 10MB.' });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type', { description: 'Only PDF, DOC, and DOCX files are allowed.' });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setCvUploading(true);
+      const response = await staffApi.uploadCV(file);
+      if (response.success) {
+        toast.success('CV uploaded successfully');
+        await fetchDocuments();
+      } else {
+        toast.error('Upload failed', { description: response.message || 'Please try again.' });
+      }
+    } catch (error: any) {
+      toast.error('Upload failed', {
+        description: error.response?.data?.message || 'Please try again.'
+      });
+    } finally {
+      setCvUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCVDelete = async (documentId: number) => {
+    try {
+      const response = await staffApi.deleteOwnDocument(documentId);
+      if (response.success) {
+        toast.success('CV deleted successfully');
+        await fetchDocuments();
+      }
+    } catch (error: any) {
+      toast.error('Failed to delete CV', {
+        description: error.response?.data?.message || 'Please try again.'
+      });
+    }
+  };
+
+  const getFileUrl = (filePath: string) => {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api';
+    return `${baseUrl}/staff-documents${filePath}`;
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType?.includes('pdf')) return 'PDF';
+    if (mimeType?.includes('word') || mimeType?.includes('document')) return 'DOC';
+    return 'FILE';
+  };
 
   const fetchBranchDetails = async (branchId: number) => {
     try {
@@ -434,6 +528,90 @@ export function ProfileScreen() {
               <div className="text-sm text-gray-900">{formatMultiValue(staffDetails?.professional_certifications)}</div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* CV / Resume */}
+      <Card className="shadow-md">
+        <CardContent className="p-4 space-y-3">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-indigo-600" />
+            CV / Resume
+          </h3>
+          <Separator />
+          <p className="text-xs text-gray-500">
+            Upload your CV/Resume for HR review. Accepted formats: PDF, DOC, DOCX (max 10MB).
+          </p>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleCVUpload}
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+          />
+
+          {cvDocuments.length > 0 ? (
+            <div className="space-y-2">
+              {cvDocuments.map((doc: any) => (
+                <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
+                      {getFileIcon(doc.mime_type)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate max-w-[180px]">
+                        {doc.document_name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {doc.file_size ? `${(doc.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
+                        {doc.uploaded_at ? ` · ${new Date(doc.uploaded_at).toLocaleDateString()}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <a
+                      href={getFileUrl(doc.file_path)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                    <button
+                      onClick={() => handleCVDelete(doc.id)}
+                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={cvUploading}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {cvUploading ? 'Uploading...' : 'Replace CV'}
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <FileText className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500 mb-1">No CV uploaded yet</p>
+              <p className="text-xs text-gray-400 mb-3">Upload your CV for HR to review</p>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={cvUploading || cvLoading}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {cvUploading ? 'Uploading...' : 'Upload CV'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

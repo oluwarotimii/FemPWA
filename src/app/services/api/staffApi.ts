@@ -86,4 +86,27 @@ export const staffApi = {
     const response = await apiClient.post('/staff', data);
     return response.data;
   },
+
+  // Get own documents (includes CV)
+  getOwnDocuments: async (): Promise<any> => {
+    const response = await apiClient.get('/staff-documents/me/documents');
+    return response.data;
+  },
+
+  // Upload own CV
+  uploadCV: async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('cv', file);
+    formData.append('document_type', 'Resume/CV');
+    const response = await apiClient.post('/staff-documents/me/documents', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Delete own document
+  deleteOwnDocument: async (documentId: number): Promise<any> => {
+    const response = await apiClient.delete(`/staff-documents/me/documents/${documentId}`);
+    return response.data;
+  },
 };

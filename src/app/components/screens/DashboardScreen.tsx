@@ -11,6 +11,10 @@ import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
 import { calculateDistance } from '@/app/utils/geofencing';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
+const LOCATION_RETRY_MAX = 3;
+const LOCATION_RETRY_DELAY = 2000;
+const LOCATION_REACQUIRE_INTERVAL = 30000;
+
 const getGeolocationErrorMessage = (error: { code?: number } | null) => {
   if (!error) return 'Unable to get your location. Please try again.';
 
@@ -34,6 +38,8 @@ const isLocationPermissionError = (value: unknown) => {
   const normalized = value.toLowerCase();
   return normalized.includes('permission denied') || normalized.includes('location permission required');
 };
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export function DashboardScreen() {
   const { user } = useAuth();
@@ -224,76 +230,104 @@ export function DashboardScreen() {
     }
   };
 
-  // Watch location
+  // Watch location with auto-retry and periodic re-acquisition
   useEffect(() => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported');
-      setLocationPermissionDenied(false);
       return;
     }
 
-    setIsLocating(true);
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const coords = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        };
-        setCurrentLocation(coords);
-        setGpsAccuracyMeters(Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null);
-        setGpsTimestamp(typeof position.timestamp === 'number' ? position.timestamp : Date.now());
-        setLocationError(null);
-        setLocationPermissionDenied(false);
-        setIsLocating(false);
-        if (debugEnabled) {
-          console.log('[Attendance][Geo] watchPosition update:', {
-            coords,
-            accuracy_m: position.coords.accuracy,
-            timestamp: position.timestamp
-          });
-        }
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        const errorMsg = getGeolocationErrorMessage(error);
-        setLocationPermissionDenied(error.code === 1);
+    let watchId: number | null = null;
+    let retryCount = 0;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let reacquireInterval: ReturnType<typeof setInterval> | null = null;
 
-        // Timeout or Position Unavailable
-        if (error.code === 3 || error.code === 2) {
-          console.log('High accuracy failed or timed out, trying standard accuracy...');
-          // If high accuracy times out or is unavailable, try standard accuracy with longer timeout
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-              setGpsAccuracyMeters(pos.coords.accuracy);
-              setGpsTimestamp(pos.timestamp);
-              setLocationError(null);
-              setLocationPermissionDenied(false);
-              setIsLocating(false);
-            },
-            (fallbackError) => {
-              console.error('Fallback geolocation error:', fallbackError);
-              setLocationError('Unable to determine location. Please ensure GPS is enabled and you are in an open area.');
-              setIsLocating(false);
-            },
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
-          );
-          return; // Don't set error yet, wait for fallback
-        }
+    const onPositionSuccess = (position: GeolocationPosition) => {
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+      retryCount = 0;
+      setCurrentLocation(coords);
+      setGpsAccuracyMeters(Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null);
+      setGpsTimestamp(typeof position.timestamp === 'number' ? position.timestamp : Date.now());
+      setLocationError(null);
+      setLocationPermissionDenied(false);
+      setIsLocating(false);
+      if (debugEnabled) {
+        console.log('[Attendance][Geo] watchPosition update:', {
+          coords,
+          accuracy_m: position.coords.accuracy,
+          timestamp: position.timestamp
+        });
+      }
+    };
 
-        setLocationError(errorMsg);
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+    const startWatching = (highAccuracy: boolean) => {
+      setIsLocating(true);
+      watchId = navigator.geolocation.watchPosition(
+        onPositionSuccess,
+        (error) => {
+          console.error('Geolocation error:', error);
+          setLocationPermissionDenied(error.code === 1);
+
+          if (error.code === 2 || error.code === 3) {
+            // Retry with backoff before falling back
+            if (retryCount < LOCATION_RETRY_MAX) {
+              retryCount++;
+              console.log(`[Attendance][Geo] Retry ${retryCount}/${LOCATION_RETRY_MAX} in ${LOCATION_RETRY_DELAY}ms...`);
+              if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+              retryTimeout = setTimeout(() => startWatching(highAccuracy), LOCATION_RETRY_DELAY);
+              return;
+            }
+            // All retries exhausted, try standard accuracy fallback
+            console.log('[Attendance][Geo] High accuracy retries exhausted, trying standard accuracy...');
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                onPositionSuccess(pos);
+              },
+              (fallbackError) => {
+                console.error('[Attendance][Geo] Fallback geolocation error:', fallbackError);
+                setLocationError('Unable to determine location. Please ensure GPS is enabled and you are in an open area.');
+                setIsLocating(false);
+              },
+              { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+            );
+            return;
+          }
+
+          const errorMsg = getGeolocationErrorMessage(error);
+          setLocationError(errorMsg);
+          setIsLocating(false);
+        },
+        { enableHighAccuracy: highAccuracy, timeout: 30000, maximumAge: 10000 }
       );
+    };
+
+    startWatching(true);
+
+    // Periodic re-acquisition: if location fails, try re-creating watcher every 30s
+    reacquireInterval = setInterval(() => {
+      if (locationError && !isLocating) {
+        console.log('[Attendance][Geo] Re-acquiring location...');
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        retryCount = 0;
+        startWatching(true);
+      }
+    }, LOCATION_REACQUIRE_INTERVAL);
+
     Promise.allSettled([
       fetchBranchInfo(),
       fetchMyAssignedLocations(),
       refreshAttendance()
     ]);
 
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+    return () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (reacquireInterval) clearInterval(reacquireInterval);
+    };
+  }, [locationError, isLocating]);
 
   const parsePoint = (value: string | null | undefined): { lat: number; lng: number } | null => {
     if (!value) return null;
@@ -433,13 +467,61 @@ export function DashboardScreen() {
     });
   };
 
+  const requestLocationPermission = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLocating(true);
+    setLocationPermissionDenied(false);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCurrentLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
+        setGpsAccuracyMeters(position.coords.accuracy);
+        setGpsTimestamp(position.timestamp);
+        setLocationError(null);
+        setLocationPermissionDenied(false);
+        setIsLocating(false);
+        toast.success('Location access granted!');
+      },
+      (error) => {
+        setLocationPermissionDenied(error.code === 1);
+        setLocationError(getGeolocationErrorMessage(error));
+        setIsLocating(false);
+        if (error.code === 1) {
+          toast.error('Location permission denied', {
+            description: 'Please enable location access in your browser or device settings and try again.',
+            duration: 7000
+          });
+        }
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  };
+
+  const getLocationWithRetry = async (attempts: number = 2): Promise<{ latitude: number; longitude: number } | null> => {
+    for (let i = 0; i < attempts; i++) {
+      const coords = await getCurrentLocation();
+      if (coords) return coords;
+      if (i < attempts - 1) {
+        console.log(`[Attendance][Geo] Location retry ${i + 1}/${attempts}...`);
+        await delay(1000);
+      }
+    }
+    return null;
+  };
+
   const handleClockAction = async () => {
     try {
       setShowLoadingModal(true);
       setLoadingStage('getting-location');
       setLoadingMessage('Getting your location...');
       
-      const coords = await getCurrentLocation();
+      const coords = await getLocationWithRetry(3);
       
       if (!coords) {
         if (locationPermissionDenied || isLocationPermissionError(locationError)) {
@@ -710,10 +792,27 @@ export function DashboardScreen() {
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -5 }}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/20 text-red-300 text-xs"
+                      className={`flex flex-col items-center gap-2 px-3 py-2 rounded-xl ${
+                        locationPermissionDenied 
+                          ? 'bg-red-500/20 text-red-300' 
+                          : 'bg-amber-500/20 text-amber-100'
+                      } text-xs`}
                     >
-                      <Info className="w-3.5 h-3.5" />
-                      <span>{locationError}</span>
+                      <div className="flex items-center gap-2">
+                        <Info className="w-3.5 h-3.5" />
+                        <span>{locationError}</span>
+                      </div>
+                      {locationPermissionDenied && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 text-[11px]"
+                          onClick={requestLocationPermission}
+                        >
+                          Grant Location Access
+                        </Button>
+                      )}
                     </motion.div>
                   ) : assignmentError ? (
                     <motion.div 
