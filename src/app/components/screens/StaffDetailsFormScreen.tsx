@@ -413,7 +413,7 @@ export function StaffDetailsFormScreen() {
   const checkExistingStaffData = async () => {
     try {
       setLoading(true);
-      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      const userId = localStorage.getItem('userId');
       if (!userId) {
         console.warn('[StaffDetailsForm] User ID not found in storage');
         // If not found in storage, check user from context
@@ -773,7 +773,7 @@ export function StaffDetailsFormScreen() {
   const handleSubmit = async () => {
     try {
       setSaving(true);
-      const storedUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      const storedUserId = localStorage.getItem('userId');
       const currentUserId = user?.id ?? (storedUserId ? Number(storedUserId) : NaN);
 
       if (!currentUserId || Number.isNaN(currentUserId)) {

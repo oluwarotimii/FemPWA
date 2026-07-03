@@ -155,7 +155,7 @@ export function GuarantorPage() {
   const [formData, setFormData] = useState<GuarantorInput>(emptyForm);
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+    const userId = localStorage.getItem('userId');
     if (userId) {
       setFormData(prev => ({ ...prev, staff_id: parseInt(userId) }));
     }
@@ -167,8 +167,7 @@ export function GuarantorPage() {
       setLoading(true);
       setError(null);
 
-      // Get current user's staff ID from context or localStorage
-      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      const userId = localStorage.getItem('userId');
       if (!userId) {
         // Fallback to user from AuthContext if available (can be added via useAuth later if needed)
         // for now just handle the storage fallback

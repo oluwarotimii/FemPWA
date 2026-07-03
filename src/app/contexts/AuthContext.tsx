@@ -25,7 +25,7 @@ interface AuthContextType {
   permissions: Permissions | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe: boolean) => Promise<User>; // Return user data
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   updateUser: (user: User) => void;
   updatePermissions: (permissions: Permissions) => void;
@@ -65,38 +65,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('permissions', JSON.stringify(newPermissions));
   };
 
-  // FIXED: Actually fetches user data so state isn't 'null' on refresh
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
-      // Check for token in localStorage (persistent) or sessionStorage (temporary)
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const token = localStorage.getItem('authToken');
 
       if (token) {
-        // Check if token has expired (for persistent logins)
         const tokenExpiry = localStorage.getItem('tokenExpiry');
         if (tokenExpiry) {
           const expiryTime = parseInt(tokenExpiry);
           if (Date.now() > expiryTime) {
-            // Token has expired
             console.log('Token has expired, logging out');
             localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
             localStorage.removeItem('userId');
-            localStorage.removeItem('rememberMe');
             localStorage.removeItem('tokenExpiry');
-            sessionStorage.removeItem('authToken');
-            sessionStorage.removeItem('userId');
             setUser(null);
             setIsLoading(false);
             return;
           }
         }
 
-        // Standard Way: Fetch fresh user data from the server using the stored token
-        // This ensures the token is still valid and the user profile is up to date
         const response = await staffApi.getCurrentUserStaffDetails();
 
-        // Refresh permissions from server (not localStorage) so role changes take effect
         try {
           const permResponse = await authApi.getPermissions();
           if (permResponse.success && permResponse.data?.permissions) {
@@ -104,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem('permissions', JSON.stringify(permResponse.data.permissions));
           }
         } catch (permError) {
-          // Fallback to cached permissions if server fetch fails
           console.warn('Failed to refresh permissions from server, using cached:', permError);
           const storedPermissions = localStorage.getItem('permissions');
           if (storedPermissions) {
@@ -118,12 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (response && response.success && response.data) {
-          // Adjust this based on your API structure (e.g., response.data.staff)
           let userData = response.data.staff || response.data.user || response.data;
 
-          // Ensure the userData matches the User interface structure
           if (response.data.staff) {
-            // If the API returns staff data, map it to the User interface
             userData = {
               id: response.data.staff.user_id,
               email: response.data.staff.email,
@@ -149,20 +136,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Error initializing auth:', error);
-      // If the token is expired/invalid, clear everything
       localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('userId');
-      localStorage.removeItem('rememberMe');
       localStorage.removeItem('tokenExpiry');
-      sessionStorage.removeItem('authToken');
-      sessionStorage.removeItem('userId');
       setUser(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (email: string, password: string, rememberMe: boolean): Promise<User> => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
       console.log('Starting login process...');
       const response = await authApi.login({ email, password });
@@ -175,28 +159,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Extracting user and token data...');
       const userData = response.data.user;
       const token = response.data.tokens?.accessToken || response.data.token;
+      const refreshToken = response.data.tokens?.refreshToken || null;
       const userPermissions = response.data.permissions;
 
       if (!userData || !token) {
         throw new Error('No user data or token received from server');
       }
 
-      // Store token with persistence based on rememberMe choice
-      if (rememberMe) {
-        // Persistent login (3 months)
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('userId', userData.id.toString());
-        localStorage.setItem('rememberMe', 'true');
-        // Set token expiry to 90 days (matches backend JWT_EXPIRES_IN)
-        const expiryTime = Date.now() + (90 * 24 * 60 * 60 * 1000);
-        localStorage.setItem('tokenExpiry', expiryTime.toString());
-        console.log('Persistent login enabled - expires in 90 days');
-      } else {
-        // Session-only login (expires when browser closes)
-        sessionStorage.setItem('authToken', token);
-        sessionStorage.setItem('userId', userData.id.toString());
-        console.log('Session login enabled');
+      // Always persistent login (90 days)
+      localStorage.setItem('authToken', token);
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
       }
+      localStorage.setItem('userId', userData.id.toString());
+      const expiryTime = Date.now() + (90 * 24 * 60 * 60 * 1000);
+      localStorage.setItem('tokenExpiry', expiryTime.toString());
+      console.log('Persistent login enabled - expires in 90 days');
       
       // Always store user data in localStorage for quick access
       if (userData) {
@@ -231,7 +209,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return mappedUser;
     } catch (error: any) {
       console.error('Login error:', error);
-      // Handle the case where the API returned an error message
       const errorMessage = error.response?.data?.message || error.message || 'Invalid credentials';
       throw new Error(errorMessage);
     }
@@ -246,9 +223,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPermissions(null);
       // Clear all storage
       localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('userId');
       localStorage.removeItem('permissions');
-      localStorage.removeItem('rememberMe');
       localStorage.removeItem('tokenExpiry');
       localStorage.removeItem('userData');
       sessionStorage.removeItem('authToken');
@@ -256,19 +233,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-refresh token before it expires (for persistent logins)
+  // Auto-refresh token before it expires
   useEffect(() => {
     const refreshInterval = 24 * 60 * 60 * 1000; // Check every 24 hours
     const refreshTimer = setInterval(async () => {
-      const rememberMe = localStorage.getItem('rememberMe');
-      if (rememberMe === 'true') {
-        try {
-          console.log('Auto-refreshing token for persistent login...');
-          // The backend will automatically refresh via the refresh token cookie
-          await initializeAuth();
-        } catch (error) {
-          console.error('Auto-refresh failed:', error);
-        }
+      try {
+        console.log('Auto-refreshing token...');
+        await initializeAuth();
+      } catch (error) {
+        console.error('Auto-refresh failed:', error);
       }
     }, refreshInterval);
 
