@@ -6,6 +6,7 @@ import {
   Calendar, User, Shield, ChevronDown, RefreshCw
 } from 'lucide-react';
 import { guarantorApi, Guarantor, GuarantorInput } from '../services/api/guarantorApi';
+import { staffApi } from '../services/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -22,14 +23,6 @@ const nigerianStates = [
   'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger',
   'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
   'FCT'
-];
-
-const idTypeOptions = [
-  { value: 'national_id', label: 'National ID Card' },
-  { value: 'passport', label: 'International Passport' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'voters_card', label: "Voter's Card" },
-  { value: 'other', label: 'Other' }
 ];
 
 const genderOptions = [
@@ -129,7 +122,6 @@ export function GuarantorPage() {
   const [guarantors, setGuarantors] = useState<Guarantor[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedGuarantor, setSelectedGuarantor] = useState<Guarantor | null>(null);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<{ type: string; path: string; name: string } | null>(null);
 
   // Form state
@@ -147,12 +139,16 @@ export function GuarantorPage() {
     state: '',
     country: 'Nigeria',
     is_active: true,
-    // Document upload fields (not in database, used for form submission)
-    _guarantor_form_file: null,
-    _id_document_file: null
   };
 
   const [formData, setFormData] = useState<GuarantorInput>(emptyForm);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocType, setUploadDocType] = useState('');
+
+  const documentTypeOptions = [
+    'Resume/CV', 'ID Document', 'Certificate', 'Reference Letter',
+    'Medical Report', 'Training Certificate', 'Guarantor Form', 'Other'
+  ];
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -197,38 +193,18 @@ export function GuarantorPage() {
     setError(null);
 
     try {
-      // Prepare payload without temporary file fields
       const payload: any = { ...formData };
-      delete payload._guarantor_form_file;
-      delete payload._id_document_file;
 
       if (selectedGuarantor) {
-        // Update existing
         const response = await guarantorApi.updateGuarantor(selectedGuarantor.id, payload);
         if (response.success) {
-          // Upload documents if files were selected
-          if (formData._guarantor_form_file) {
-            await guarantorApi.uploadDocument(selectedGuarantor.id, 'form', formData._guarantor_form_file);
-          }
-          if (formData._id_document_file) {
-            await guarantorApi.uploadDocument(selectedGuarantor.id, 'id', formData._id_document_file);
-          }
           toast.success('Guarantor updated successfully');
           resetForm();
           loadGuarantors();
         }
       } else {
-        // Create new
         const response = await guarantorApi.createGuarantor(payload);
         if (response.success && response.data?.guarantor?.id) {
-          const guarantorId = response.data.guarantor.id;
-          // Upload documents if files were selected
-          if (formData._guarantor_form_file) {
-            await guarantorApi.uploadDocument(guarantorId, 'form', formData._guarantor_form_file);
-          }
-          if (formData._id_document_file) {
-            await guarantorApi.uploadDocument(guarantorId, 'id', formData._id_document_file);
-          }
           toast.success('Guarantor added successfully');
           resetForm();
           loadGuarantors();
@@ -243,11 +219,32 @@ export function GuarantorPage() {
     }
   };
 
+  const handleUploadDocument = async () => {
+    if (!uploadFile || !uploadDocType) {
+      toast.error('Please select a document type and file');
+      return;
+    }
+    try {
+      setLoading(true);
+      await staffApi.uploadDocument(uploadFile, uploadDocType);
+      toast.success('Document uploaded successfully');
+      setUploadFile(null);
+      setUploadDocType('');
+      loadGuarantors();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to upload document');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData(emptyForm);
     setSelectedGuarantor(null);
     setShowForm(false);
     setError(null);
+    setUploadFile(null);
+    setUploadDocType('');
   };
 
   const handleEdit = (guarantor: Guarantor) => {
@@ -280,21 +277,6 @@ export function GuarantorPage() {
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to delete guarantor');
-    }
-  };
-
-  const handleUploadDocument = async (guarantorId: number, documentType: 'form' | 'id', file: File) => {
-    try {
-      setUploadingDoc(true);
-      const response = await guarantorApi.uploadDocument(guarantorId, documentType, file);
-      if (response.success) {
-        toast.success('Document uploaded successfully');
-        loadGuarantors();
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to upload document');
-    } finally {
-      setUploadingDoc(false);
     }
   };
 
@@ -449,7 +431,7 @@ export function GuarantorPage() {
                 <div className="border-t pt-3 mb-3">
                   <p className="text-xs font-medium text-gray-600 mb-2">Documents</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {guarantor.guarantor_form_path ? (
+                    {guarantor.guarantor_form_path && (
                       <button
                         onClick={() => setViewingDoc({
                           type: 'pdf',
@@ -461,25 +443,8 @@ export function GuarantorPage() {
                         <FileText className="w-3 h-3" />
                         Form
                       </button>
-                    ) : (
-                      <label className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 flex items-center gap-1 cursor-pointer">
-                        <Upload className="w-3 h-3" />
-                        Upload Form
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              handleUploadDocument(guarantor.id, 'form', e.target.files[0]);
-                            }
-                          }}
-                          className="hidden"
-                          disabled={uploadingDoc}
-                        />
-                      </label>
                     )}
-
-                    {guarantor.id_document_path ? (
+                    {guarantor.id_document_path && (
                       <button
                         onClick={() => setViewingDoc({
                           type: 'pdf',
@@ -491,22 +456,9 @@ export function GuarantorPage() {
                         <Shield className="w-3 h-3" />
                         ID
                       </button>
-                    ) : (
-                      <label className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 flex items-center gap-1 cursor-pointer">
-                        <Upload className="w-3 h-3" />
-                        Upload ID
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              handleUploadDocument(guarantor.id, 'id', e.target.files[0]);
-                            }
-                          }}
-                          className="hidden"
-                          disabled={uploadingDoc}
-                        />
-                      </label>
+                    )}
+                    {!guarantor.guarantor_form_path && !guarantor.id_document_path && (
+                      <span className="text-xs text-gray-400">No documents attached</span>
                     )}
                   </div>
                 </div>
@@ -603,21 +555,6 @@ export function GuarantorPage() {
                   </div>
                 </div>
 
-                {/* Identification */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Shield className="w-5 h-5" />
-                    Identification Details
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField label="ID Type" field="id_type" type="select" options={idTypeOptions} icon={Shield} formData={formData} handleInputChange={handleInputChange} />
-                    <FormField label="ID Number" field="id_number" icon={Shield} formData={formData} handleInputChange={handleInputChange} />
-                    <FormField label="Issuing Authority" field="id_issuing_authority" icon={Shield} formData={formData} handleInputChange={handleInputChange} />
-                    <FormField label="Issue Date" field="id_issue_date" type="date" icon={Calendar} formData={formData} handleInputChange={handleInputChange} />
-                    <FormField label="Expiry Date" field="id_expiry_date" type="date" icon={Calendar} formData={formData} handleInputChange={handleInputChange} />
-                  </div>
-                </div>
-
                 {/* Employment */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -632,68 +569,48 @@ export function GuarantorPage() {
                 </div>
 
                 {/* Document Upload Section */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Document Upload
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-blue-600" />
+                    Upload a Document
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-700 mb-1">Guarantor Form</p>
-                      <p className="text-xs text-gray-500 mb-2">Upload signed guarantor form (PDF, JPG, PNG)</p>
-                      {formData._guarantor_form_file ? (
-                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {formData._guarantor_form_file.name}
-                        </div>
-                      ) : (
-                        <label className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded cursor-pointer hover:bg-blue-100 inline-flex items-center gap-1">
-                          <Upload className="w-3 h-3" />
-                          Choose File
-                          <input
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                // Store file for upload on form submission
-                                setFormData(prev => ({ ...prev, _guarantor_form_file: file }));
-                              }
-                            }}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <select
+                        value={uploadDocType}
+                        onChange={(e) => setUploadDocType(e.target.value)}
+                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white"
+                      >
+                        <option value="">Select document type...</option>
+                        {documentTypeOptions.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
                     </div>
-
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                      <Shield className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-700 mb-1">ID Document</p>
-                      <p className="text-xs text-gray-500 mb-2">Upload ID document (PDF, JPG, PNG)</p>
-                      {formData._id_document_file ? (
-                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {formData._id_document_file.name}
-                        </div>
-                      ) : (
-                        <label className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded cursor-pointer hover:bg-blue-100 inline-flex items-center gap-1">
-                          <Upload className="w-3 h-3" />
-                          Choose File
-                          <input
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setFormData(prev => ({ ...prev, _id_document_file: file }));
-                              }
-                            }}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
+                    <div className="flex-1">
+                      <label className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg border-2 border-dashed text-sm cursor-pointer transition-colors ${uploadFile ? 'border-green-300 bg-green-50' : 'border-gray-300 hover:border-blue-400 bg-white'}`}>
+                        <Upload className={`w-4 h-4 ${uploadFile ? 'text-green-600' : 'text-gray-400'}`} />
+                        <span className={uploadFile ? 'text-green-700' : 'text-gray-600'}>
+                          {uploadFile ? uploadFile.name : 'Choose file...'}
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
+                    <Button
+                      type="button"
+                      onClick={handleUploadDocument}
+                      disabled={!uploadFile || !uploadDocType || loading}
+                      size="sm"
+                      className="h-10 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload
+                    </Button>
                   </div>
                 </div>
               </div>

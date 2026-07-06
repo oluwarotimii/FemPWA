@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
+import { TimePicker } from '@/app/components/ui/time-picker';
 import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
 import {
@@ -70,6 +71,11 @@ export function ShiftExceptionManagementScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [editException, setEditException] = useState<ShiftException | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+  const [dontShowDisclaimerAgain, setDontShowDisclaimerAgain] = useState(() => {
+    return localStorage.getItem('shift_exception_disclaimer_dismissed') === 'true';
+  });
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ShiftException | null>(null);
@@ -212,7 +218,11 @@ export function ShiftExceptionManagementScreen() {
       new_break_duration_minutes: 0,
       reason: '',
     });
-    setFormOpen(true);
+    if (dontShowDisclaimerAgain) {
+      setFormOpen(true);
+    } else {
+      setDisclaimerOpen(true);
+    }
   };
 
   const openEditForm = (exception: ShiftException) => {
@@ -226,7 +236,11 @@ export function ShiftExceptionManagementScreen() {
       new_break_duration_minutes: exception.new_break_duration_minutes || 0,
       reason: exception.reason || '',
     });
-    setFormOpen(true);
+    if (dontShowDisclaimerAgain) {
+      setFormOpen(true);
+    } else {
+      setDisclaimerOpen(true);
+    }
   };
 
   const toggleStaff = (userId: number) => {
@@ -693,7 +707,14 @@ export function ShiftExceptionManagementScreen() {
               <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Exception Type *</Label>
               <select
                 value={formData.exception_type}
-                onChange={(e) => setFormData({ ...formData, exception_type: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const updates: any = { exception_type: val };
+                  if (val === 'late_start') {
+                    updates.new_start_time = formData.new_start_time || '10:00';
+                  }
+                  setFormData({ ...formData, ...updates });
+                }}
                 className="w-full h-10 px-3 rounded-md border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1A2B3C]/20"
               >
                 <option value="">Select type</option>
@@ -705,16 +726,16 @@ export function ShiftExceptionManagementScreen() {
 
             {/* Times */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Start Time</Label>
-                <Input type="time" value={formData.new_start_time}
-                  onChange={(e) => setFormData({ ...formData, new_start_time: e.target.value })} className="h-10" />
-              </div>
-              <div>
-                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">End Time</Label>
-                <Input type="time" value={formData.new_end_time}
-                  onChange={(e) => setFormData({ ...formData, new_end_time: e.target.value })} className="h-10" />
-              </div>
+              <TimePicker
+                label="Start Time"
+                value={formData.new_start_time}
+                onChange={(val) => setFormData({ ...formData, new_start_time: val })}
+              />
+              <TimePicker
+                label="End Time"
+                value={formData.new_end_time}
+                onChange={(val) => setFormData({ ...formData, new_end_time: val })}
+              />
             </div>
 
             {/* Break */}
@@ -741,6 +762,103 @@ export function ShiftExceptionManagementScreen() {
                 ? `Create (${selectedStaffIds.length} staff × ${bulkDates.length} dates)`
                 : `Create (${selectedStaffIds.length} staff)`
               }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={disclaimerOpen} onOpenChange={setDisclaimerOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg mx-2 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg">Understanding Shift Exceptions</DialogTitle>
+            <DialogDescription className="text-sm">
+              Learn what each exception type means and how to set the correct times.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-5">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-bold text-gray-900">Exception Types Explained</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="p-2 bg-white rounded border border-blue-100">
+                  <span className="font-semibold text-amber-700">Late Start</span>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Employee arrives later than their normal start time. Set the <strong>Start Time</strong> to
+                    the new later time they will arrive. The <strong>End Time</strong> stays the same (or
+                    adjust if needed). Example: Normal 8am start → Late start at 10am. Just set Start Time to
+                    10:00 AM.
+                  </p>
+                </div>
+                <div className="p-2 bg-white rounded border border-blue-100">
+                  <span className="font-semibold text-amber-700">Early Release</span>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Employee leaves earlier than their normal end time. Set <strong>End Time</strong> to the
+                    new earlier time.
+                  </p>
+                </div>
+                <div className="p-2 bg-white rounded border border-blue-100">
+                  <span className="font-semibold text-amber-700">Day Off</span>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Employee has the full day off. You do not need to set any times.
+                  </p>
+                </div>
+                <div className="p-2 bg-white rounded border border-blue-100">
+                  <span className="font-semibold text-amber-700">Special Schedule</span>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Completely different shift time. Set both <strong>Start Time</strong> and{' '}
+                    <strong>End Time</strong> to the new schedule.
+                  </p>
+                </div>
+                <div className="p-2 bg-white rounded border border-blue-100">
+                  <span className="font-semibold text-amber-700">Holiday Work</span>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Employee works on a public holiday. Set the <strong>Start Time</strong> and{' '}
+                    <strong>End Time</strong> for the holiday shift.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h4 className="text-sm font-bold text-gray-900 mb-2">How to Set the Time</h4>
+              <ul className="space-y-1.5 text-xs text-gray-700 list-disc list-inside">
+                <li>Use the <strong>up/down arrows</strong> to adjust hours and minutes</li>
+                <li>Click <strong>AM/PM</strong> to switch between morning and afternoon</li>
+                <li>Use <strong>quick presets</strong> (6am, 9am, 12pm, etc.) for common times</li>
+                <li>Times are in <strong>12-hour format</strong> for easy reading</li>
+                <li>For <strong>Late Start</strong>: only change the Start Time to when they will arrive</li>
+                <li>For <strong>Early Release</strong>: only change the End Time to when they will leave</li>
+              </ul>
+            </div>
+
+            <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer">
+              <Checkbox
+                checked={dontShowDisclaimerAgain}
+                onCheckedChange={(checked) => {
+                  setDontShowDisclaimerAgain(checked === true);
+                  if (checked) {
+                    localStorage.setItem('shift_exception_disclaimer_dismissed', 'true');
+                  } else {
+                    localStorage.removeItem('shift_exception_disclaimer_dismissed');
+                  }
+                }}
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Don&apos;t show this again</p>
+                <p className="text-xs text-gray-500">Skip this guide on future exceptions</p>
+              </div>
+            </label>
+          </div>
+
+          <DialogFooter className="gap-2 sticky bottom-0 bg-white pt-3 border-t">
+            <Button variant="outline" onClick={() => { setDisclaimerOpen(false); }}
+              className="text-xs sm:text-sm">Cancel</Button>
+            <Button onClick={() => {
+              setDisclaimerAccepted(true);
+              setDisclaimerOpen(false);
+              setFormOpen(true);
+            }} className="bg-[#1A2B3C] hover:bg-[#2C3E50] text-xs sm:text-sm">
+              I Understand, Continue
             </Button>
           </DialogFooter>
         </DialogContent>
