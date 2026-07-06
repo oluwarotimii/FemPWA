@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Upload, Download, Trash2, CheckCircle, AlertCircle, User, Phone, Mail, MapPin, Briefcase, FileText, Shield, Calendar } from 'lucide-react';
+import { X, Save, Upload, Download, Trash2, CheckCircle, AlertCircle, User, Phone, Mail, MapPin, Briefcase, FileText, Calendar } from 'lucide-react';
 import { guarantorApi, Guarantor, GuarantorInput } from '../../services/api/guarantorApi';
 
 interface GuarantorFormProps {
@@ -14,14 +14,6 @@ const nigerianStates = [
   'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger',
   'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
   'FCT'
-];
-
-const idTypeOptions = [
-  { value: 'national_id', label: 'National ID Card' },
-  { value: 'passport', label: 'International Passport' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'voters_card', label: "Voter's Card" },
-  { value: 'other', label: 'Other' }
 ];
 
 const genderOptions = [
@@ -244,9 +236,6 @@ export function GuarantorForm({ staffId, onClose, onSuccess }: GuarantorFormProp
         >
           <option value="">Select {label}</option>
           {field === 'gender' && genderOptions.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-          {field === 'id_type' && idTypeOptions.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
           {field === 'guarantee_type' && guaranteeTypeOptions.map(opt => (
@@ -500,21 +489,6 @@ export function GuarantorForm({ staffId, onClose, onSuccess }: GuarantorFormProp
                 <InputField label="State" field="state" type="select" icon={MapPin} />
                 <InputField label="Postal Code" field="postal_code" icon={MapPin} />
                 <InputField label="Country" field="country" icon={MapPin} />
-              </div>
-            </div>
-
-            {/* Identification */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Identification Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <InputField label="ID Type" field="id_type" type="select" icon={Shield} />
-                <InputField label="ID Number" field="id_number" icon={Shield} />
-                <InputField label="Issuing Authority" field="id_issuing_authority" icon={Shield} />
-                <InputField label="Issue Date" field="id_issue_date" type="date" icon={Calendar} />
-                <InputField label="Expiry Date" field="id_expiry_date" type="date" icon={Calendar} />
               </div>
             </div>
 

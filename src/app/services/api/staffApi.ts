@@ -104,6 +104,17 @@ export const staffApi = {
     return response.data;
   },
 
+  // Upload any document with custom type
+  uploadDocument: async (file: File, documentType: string): Promise<any> => {
+    const formData = new FormData();
+    formData.append('cv', file);
+    formData.append('document_type', documentType);
+    const response = await apiClient.post('/staff-documents/me/documents', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
   // Delete own document
   deleteOwnDocument: async (documentId: number): Promise<any> => {
     const response = await apiClient.delete(`/staff-documents/me/documents/${documentId}`);
