@@ -189,7 +189,7 @@ export const leaveApi = {
       pagination: PaginationResponse;
     };
   }> => {
-    const response = await apiClient.get('/leave/requests', { params });
+    const response = await apiClient.get('/leave/', { params });
     return response.data;
   },
 
@@ -224,7 +224,7 @@ export const leaveApi = {
         } catch (secondError: any) {
           if (secondError.response?.status === 404) {
             console.log('Endpoint /leave/requests/my not found, trying /leave/requests');
-            const response = await apiClient.get('/leave/requests', { params });
+            const response = await apiClient.get('/leave/', { params });
             return response.data;
           }
           throw secondError;
@@ -243,7 +243,7 @@ export const leaveApi = {
     message: string;
     data: { leaveRequest: LeaveRequest };
   }> => {
-    const response = await apiClient.get(`/leave/requests/${id}`);
+    const response = await apiClient.get(`/leave/${id}`);
     return response.data;
   },
 
@@ -328,7 +328,7 @@ export const leaveApi = {
     message: string;
     data: { leaveRequest: LeaveRequest };
   }> => {
-    const response = await apiClient.put(`/leave/requests/${id}`, { status, reason });
+    const response = await apiClient.put(`/leave/${id}`, { status, reason });
     return response.data;
   },
 
@@ -340,7 +340,7 @@ export const leaveApi = {
     success: boolean;
     message: string;
   }> => {
-    const response = await apiClient.delete(`/leave/requests/${id}`);
+    const response = await apiClient.delete(`/leave/${id}`);
     return response.data;
   },
 
