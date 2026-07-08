@@ -24,7 +24,6 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
           runtimeCaching: [
             {
-              // Only cache GET API requests; exclude POST/PUT/DELETE (attendance, leave submission, etc.)
               urlPattern: new RegExp(`^https:\\/\\/${apiDomain.replace(/\./g, '\\.')}\\/api\\/.*$`),
               handler: 'StaleWhileRevalidate',
               method: 'GET',
@@ -32,7 +31,20 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'api-cache',
                 expiration: {
                   maxEntries: 50,
-                  maxAgeSeconds: 300, // 5 minutes
+                  maxAgeSeconds: 300,
+                },
+              },
+            },
+            {
+              urlPattern: new RegExp(`^https:\\/\\/${apiDomain.replace(/\./g, '\\.')}\\/api\\/attendance\\/(check-in|check-out)$`),
+              handler: 'NetworkOnly',
+              method: 'POST',
+              options: {
+                backgroundSync: {
+                  name: 'attendance-queue',
+                  options: {
+                    maxRetentionTime: 24 * 60,
+                  },
                 },
               },
             },

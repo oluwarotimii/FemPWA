@@ -1,19 +1,23 @@
-import { useState, useEffect } from 'react';
-import { Clock, Calendar, Briefcase, MapPin, Navigation, Info, LocateFixed, Loader2, CheckCircle, XCircle, Timer } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Clock, Calendar, Briefcase, Navigation, Info, LocateFixed, Loader2, Timer } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
-import { attendanceApi, shiftApi } from '@/app/services/api';
+import { attendanceApi, shiftApi, syncApi } from '@/app/services/api';
+import { offlineQueue } from '@/app/services/offline/checkInQueue';
+import { dataStore } from '@/app/services/offline/dataStore';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAutoCheckout } from '@/app/hooks/useAutoCheckout';
 import { calculateDistance } from '@/app/utils/geofencing';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
-const LOCATION_RETRY_MAX = 3;
-const LOCATION_RETRY_DELAY = 2000;
-const LOCATION_REACQUIRE_INTERVAL = 30000;
+const GPS_TIMEOUT = 8000;
+const GPS_MAX_AGE = 30000;
+const CACHE_KEY_LOCATIONS = 'cached_assigned_locations';
+const CACHE_KEY_BRANCH = 'cached_branch_info';
+const CACHE_TTL = 5 * 60 * 1000;
 
 const getGeolocationErrorMessage = (error: { code?: number } | null) => {
   if (!error) return 'Unable to get your location. Please try again.';
@@ -38,8 +42,6 @@ const isLocationPermissionError = (value: unknown) => {
   const normalized = value.toLowerCase();
   return normalized.includes('permission denied') || normalized.includes('location permission required');
 };
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export function DashboardScreen() {
   const { user } = useAuth();
@@ -69,10 +71,9 @@ export function DashboardScreen() {
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsTimestamp, setGpsTimestamp] = useState<number | null>(null);
 
-  // Loading modal states
-  const [showLoadingModal, setShowLoadingModal] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<'getting-location' | 'submitting' | 'success' | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
 
   // Derived states
   const hasCheckedInToday = todayRecord?.check_in_time !== null && todayRecord?.check_in_time !== undefined;
@@ -197,6 +198,7 @@ export function DashboardScreen() {
       const settings = res.data?.settings;
       if (settings) {
         setBranchInfo(settings);
+        setCache(CACHE_KEY_BRANCH, settings);
         if (debugEnabled) {
           console.log('[Attendance][Branch] Branch settings loaded:', settings);
         }
@@ -216,6 +218,7 @@ export function DashboardScreen() {
       const res = await attendanceApi.getMyLocations();
       const locations = res.data?.locations || [];
       setAssignedLocations(locations);
+      setCache(CACHE_KEY_LOCATIONS, locations);
       if (!locations || locations.length === 0) {
         setAssignmentError('No attendance location assigned. Contact HR to assign your check-in location.');
       } else {
@@ -230,7 +233,7 @@ export function DashboardScreen() {
     }
   };
 
-  // Watch location with auto-retry and periodic re-acquisition
+  // Watch location with standard accuracy (GPS works without internet)
   useEffect(() => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported');
@@ -238,16 +241,12 @@ export function DashboardScreen() {
     }
 
     let watchId: number | null = null;
-    let retryCount = 0;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let reacquireInterval: ReturnType<typeof setInterval> | null = null;
 
     const onPositionSuccess = (position: GeolocationPosition) => {
       const coords = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude
       };
-      retryCount = 0;
       setCurrentLocation(coords);
       setGpsAccuracyMeters(Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null);
       setGpsTimestamp(typeof position.timestamp === 'number' ? position.timestamp : Date.now());
@@ -263,71 +262,47 @@ export function DashboardScreen() {
       }
     };
 
-    const startWatching = (highAccuracy: boolean) => {
+    const startWatching = () => {
       setIsLocating(true);
       watchId = navigator.geolocation.watchPosition(
         onPositionSuccess,
         (error) => {
           console.error('Geolocation error:', error);
           setLocationPermissionDenied(error.code === 1);
-
-          if (error.code === 2 || error.code === 3) {
-            // Retry with backoff before falling back
-            if (retryCount < LOCATION_RETRY_MAX) {
-              retryCount++;
-              console.log(`[Attendance][Geo] Retry ${retryCount}/${LOCATION_RETRY_MAX} in ${LOCATION_RETRY_DELAY}ms...`);
-              if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-              retryTimeout = setTimeout(() => startWatching(highAccuracy), LOCATION_RETRY_DELAY);
-              return;
-            }
-            // All retries exhausted, try standard accuracy fallback
-            console.log('[Attendance][Geo] High accuracy retries exhausted, trying standard accuracy...');
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                onPositionSuccess(pos);
-              },
-              (fallbackError) => {
-                console.error('[Attendance][Geo] Fallback geolocation error:', fallbackError);
-                setLocationError('Unable to determine location. Please ensure GPS is enabled and you are in an open area.');
-                setIsLocating(false);
-              },
-              { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
-            );
-            return;
-          }
-
-          const errorMsg = getGeolocationErrorMessage(error);
-          setLocationError(errorMsg);
+          setLocationError(getGeolocationErrorMessage(error));
           setIsLocating(false);
         },
-        { enableHighAccuracy: highAccuracy, timeout: 30000, maximumAge: 10000 }
+        { enableHighAccuracy: false, timeout: GPS_TIMEOUT, maximumAge: GPS_MAX_AGE }
       );
     };
 
-    startWatching(true);
+    startWatching();
 
-    // Periodic re-acquisition: if location fails, try re-creating watcher every 30s
-    reacquireInterval = setInterval(() => {
-      if (locationError && !isLocating) {
-        console.log('[Attendance][Geo] Re-acquiring location...');
-        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-        retryCount = 0;
-        startWatching(true);
-      }
-    }, LOCATION_REACQUIRE_INTERVAL);
-
+    // Load cached data from IndexedDB + sessionStorage, then refresh from server
+    loadCachedDashboardData();
     Promise.allSettled([
       fetchBranchInfo(),
       fetchMyAssignedLocations(),
-      refreshAttendance()
+      refreshAttendance(),
+      // Sync: fetch all dashboard data in one call and cache it
+      syncApi.getDashboardData().then(res => {
+        if (res.success && res.data) {
+          const d = res.data;
+          if (d.assignedLocations?.length) setAssignedLocations(d.assignedLocations);
+          if (d.branchInfo) setBranchInfo(d.branchInfo);
+          if (d.todayAttendance) setTodayRecord(d.todayAttendance);
+          if (d.monthAttendance?.length) setAttendanceRecords(d.monthAttendance);
+          if (d.todaySchedule) setTodaySchedule(d.todaySchedule);
+          if (d.shiftExceptions?.length) setMyExceptions(d.shiftExceptions);
+          updateDataStoreFromSync(d);
+        }
+      }).catch(() => {/* non-fatal; fallback to individual API calls */})
     ]);
 
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-      if (retryTimeout) clearTimeout(retryTimeout);
-      if (reacquireInterval) clearInterval(reacquireInterval);
     };
-  }, [locationError, isLocating]);
+  }, []);
 
   const parsePoint = (value: string | null | undefined): { lat: number; lng: number } | null => {
     if (!value) return null;
@@ -395,6 +370,49 @@ export function DashboardScreen() {
     }
   }, [currentLocation, assignedLocations, gpsAccuracyMeters, debugEnabled]);
 
+  // Track online/offline status and refresh pending count
+  const refreshPendingCount = useCallback(async () => {
+    const count = await offlineQueue.getCount();
+    setPendingCount(count);
+  }, []);
+
+  const syncPendingItems = useCallback(async () => {
+    const items = await offlineQueue.getAll();
+    for (const item of items) {
+      try {
+        if (item.type === 'check-in') {
+          await attendanceApi.checkIn(item.payload);
+        } else {
+          await attendanceApi.checkOut(item.payload);
+        }
+        if (item.id !== undefined) {
+          await offlineQueue.remove(item.id);
+        }
+        toast.success(`${item.type === 'check-in' ? 'Check-in' : 'Check-out'} synced`);
+      } catch {
+        if (item.id !== undefined) {
+          await offlineQueue.incrementRetry(item.id);
+        }
+      }
+    }
+    await refreshPendingCount();
+  }, [refreshPendingCount]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncPendingItems();
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    refreshPendingCount();
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncPendingItems, refreshPendingCount]);
+
   // Update time every minute
   useEffect(() => {
     const timer = setInterval(() => {
@@ -404,65 +422,85 @@ export function DashboardScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  const getCache = (key: string) => {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      const { data, timestamp } = JSON.parse(raw);
+      if (Date.now() - timestamp > CACHE_TTL) {
+        sessionStorage.removeItem(key);
+        return null;
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const setCache = (key: string, data: any) => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch {
+      // sessionStorage full — ignore
+    }
+  };
+
+  const loadCachedDashboardData = async () => {
+    // Try IndexedDB first (persistent across sessions)
+    const [cachedLocations, cachedBranch, cachedAttendance, cachedSchedule, cachedExceptions] = await Promise.all([
+      dataStore.get<any[]>('locations'),
+      dataStore.get<any>('branchInfo'),
+      dataStore.get<any[]>('attendance'),
+      dataStore.get<any>('todaySchedule'),
+      dataStore.get<any[]>('shiftExceptions'),
+    ]);
+    if (cachedLocations?.data) setAssignedLocations(cachedLocations.data);
+    if (cachedBranch?.data) setBranchInfo(cachedBranch.data);
+    if (cachedAttendance?.data) setAttendanceRecords(cachedAttendance.data);
+    if (cachedSchedule?.data) setTodaySchedule(cachedSchedule.data);
+    if (cachedExceptions?.data) setMyExceptions(cachedExceptions.data);
+
+    // Then try sessionStorage (faster on tab switch, may have newer data)
+    const ssLocations = getCache(CACHE_KEY_LOCATIONS);
+    if (ssLocations) setAssignedLocations(ssLocations);
+    const ssBranch = getCache(CACHE_KEY_BRANCH);
+    if (ssBranch) setBranchInfo(ssBranch);
+  };
+
+  const updateDataStoreFromSync = async (data: any) => {
+    if (!data) return;
+    const promises: Promise<any>[] = [];
+    if (data.assignedLocations) promises.push(dataStore.put('locations', data.assignedLocations));
+    if (data.branchInfo) promises.push(dataStore.put('branchInfo', data.branchInfo));
+    if (data.monthAttendance) promises.push(dataStore.put('attendance', data.monthAttendance));
+    if (data.todaySchedule) promises.push(dataStore.put('todaySchedule', data.todaySchedule));
+    if (data.shiftExceptions) promises.push(dataStore.put('shiftExceptions', data.shiftExceptions));
+    await Promise.allSettled(promises);
+    // Also update sessionStorage for fast tab-switch
+    if (data.assignedLocations) setCache(CACHE_KEY_LOCATIONS, data.assignedLocations);
+    if (data.branchInfo) setCache(CACHE_KEY_BRANCH, data.branchInfo);
+  };
+
   const getCurrentLocation = (): Promise<{ latitude: number; longitude: number } | null> => {
+    // If the watcher already has a fresh location, use it instantly
+    if (currentLocation && !locationError) {
+      return Promise.resolve(currentLocation);
+    }
+
+    if (!navigator.geolocation) {
+      return Promise.resolve(null);
+    }
+
+    // Quick single-shot as fallback if watcher hasn't fired yet
     return new Promise((resolve) => {
-      // 1. If we have a fresh location from the watch effect (< 1 minute old), use it immediately!
-      if (currentLocation && !locationError) {
-        console.log('Using fresh watched location for instant check-in');
-        setLocationPermissionDenied(false);
-        if (debugEnabled) {
-          console.log('[Attendance][Geo] Using watched location for submit:', {
-            coords: currentLocation,
-            accuracy_m: gpsAccuracyMeters,
-            ts: gpsTimestamp
-          });
-        }
-        resolve(currentLocation);
-        return;
-      }
-
-      if (!navigator.geolocation) {
-        console.warn('Geolocation is not supported by this browser.');
-        setLocationPermissionDenied(false);
-        resolve(null);
-        return;
-      }
-
-      console.log('Fetching fresh location for check-in...');
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocationPermissionDenied(false);
-          if (debugEnabled) {
-            console.log('[Attendance][Geo] getCurrentPosition result:', {
-              coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
-              accuracy_m: position.coords.accuracy,
-              timestamp: position.timestamp
-            });
-          }
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
+          const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+          setCurrentLocation(coords);
+          resolve(coords);
         },
-        (error) => {
-          console.error('Geolocation error:', error);
-          setLocationPermissionDenied(error.code === 1);
-          // 2. Fallback to standard accuracy if high accuracy fails/timeouts
-          if (error.code === 3 || error.code === 2) {
-            console.log('Falling back to standard accuracy...');
-            navigator.geolocation.getCurrentPosition(
-              (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-              () => resolve(null),
-              { enableHighAccuracy: false, timeout: 5000 }
-            );
-          } else {
-            if (error.code === 1) {
-              setLocationError(getGeolocationErrorMessage(error));
-            }
-            resolve(null);
-          }
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+        () => resolve(null),
+        { enableHighAccuracy: false, timeout: GPS_TIMEOUT, maximumAge: GPS_MAX_AGE }
       );
     });
   };
@@ -503,230 +541,111 @@ export function DashboardScreen() {
     );
   };
 
-  const getLocationWithRetry = async (attempts: number = 2): Promise<{ latitude: number; longitude: number } | null> => {
-    for (let i = 0; i < attempts; i++) {
-      const coords = await getCurrentLocation();
-      if (coords) return coords;
-      if (i < attempts - 1) {
-        console.log(`[Attendance][Geo] Location retry ${i + 1}/${attempts}...`);
-        await delay(1000);
-      }
-    }
-    return null;
-  };
-
   const handleClockAction = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     try {
-      setShowLoadingModal(true);
-      setLoadingStage('getting-location');
-      setLoadingMessage('Getting your location...');
-      
-      const coords = await getLocationWithRetry(3);
-      
+      const coords = await getCurrentLocation();
+
       if (!coords) {
         if (locationPermissionDenied || isLocationPermissionError(locationError)) {
-          const permissionMessage = locationError || 'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
           toast.error('Location Permission Required', {
-            description: permissionMessage,
+            description: locationError || 'Please allow location access and try again.',
             duration: 7000
           });
           return;
         }
-
-        throw new Error(locationError || 'Unable to get your location. Please enable GPS and try again.');
-      }
-
-      setLoadingStage('submitting');
-      setLoadingMessage('Submitting attendance...');
-
-      const todayStr = format(new Date(), "yyyy-MM-dd");
-
-      if (isClocked) {
-        // Check out
-        const checkOutData = {
-          date: todayStr,
-          check_out_time: new Date().toTimeString().substring(0, 8),
-          location_coordinates: coords
-            ? `POINT(${coords.longitude} ${coords.latitude})`
-            : null,
-          location_address: coords ? 'Mobile GPS' : 'Office (Manual)'
-        };
-        
-        const response = await attendanceApi.checkOut(checkOutData);
-        if (debugEnabled) {
-          console.log('[Attendance] Check-out request/response:', { request: checkOutData, response });
-        }
-
-        setLoadingStage('success');
-        setLoadingMessage('Successfully clocked out!');
-        toast.success(response?.message || 'Successfully clocked out', {
-          description: `Successfully clocked out at ${new Date().toLocaleTimeString()}`
+        toast.error('Location Error', {
+          description: locationError || 'Unable to get your location. Please enable GPS and try again.',
+          duration: 6000
         });
-        
-        setTimeout(() => {
-          setShowLoadingModal(false);
-          setLoadingStage(null);
-          setLoading(false);
-        }, 1000);
-      } else {
-        // Check in
-        const checkInData = {
-          date: todayStr,
-          check_in_time: new Date().toTimeString().substring(0, 8),
-          location_coordinates: coords
-            ? `POINT(${coords.longitude} ${coords.latitude})`
-            : null,
-          location_address: coords ? 'Mobile GPS' : 'Office (Manual)',
-          status: 'present'
-        };
-
-        if (debugEnabled) {
-          console.log('[Attendance] Pre-check-in geo state:', {
-            coords,
-            assignedCount: assignedLocations.length,
-            nearestAssignedLocation: nearestAssignedLocation
-              ? {
-                  id: nearestAssignedLocation.id,
-                  name: nearestAssignedLocation.name,
-                  radius_m: assignedLocationRadius,
-                  distance_m: distanceFromAssignedLocation,
-                  within: isWithinRange
-                }
-              : null,
-            accuracy_m: gpsAccuracyMeters,
-          });
-        }
-
-        const response = await attendanceApi.checkIn(checkInData);
-        if (debugEnabled) {
-          console.log('[Attendance] Check-in request/response:', { request: checkInData, response });
-        }
-
-        setLoadingStage('success');
-        setLoadingMessage('Successfully clocked in!');
-        toast.success(response?.message || 'Successfully clocked in', {
-          description: `Welcome back, ${user?.fullName}!`
-        });
-
-        // Immediately set today's record (use server response to avoid incorrect UI state)
-        if (response?.data?.attendance) {
-          setTodayRecord(response.data.attendance);
-        }
-        
-        setTimeout(() => {
-          setShowLoadingModal(false);
-          setLoadingStage(null);
-          setLoading(false);
-        }, 1000);
-        if (!response?.data?.attendance) {
-          await refreshAttendance();
-        }
         return;
       }
 
-      // Refresh attendance records after clock out
-      await refreshAttendance();
-    } catch (error: any) {
-      setShowLoadingModal(false);
-      setLoadingStage(null);
-      if (debugEnabled) {
-        console.log('[Attendance] Clock action error:', {
-          status: error?.response?.status,
-          message: error?.response?.data?.message || error?.message,
-          data: error?.response?.data
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const checkInTime = new Date().toTimeString().substring(0, 8);
+      const locationStr = coords ? `POINT(${coords.longitude} ${coords.latitude})` : null;
+
+      // If offline, queue immediately instead of failing
+      if (!isOnline) {
+        if (isClocked) {
+          await offlineQueue.add({
+            type: 'check-out',
+            payload: { date: todayStr, check_out_time: checkInTime, location_coordinates: locationStr, location_address: 'Mobile GPS' },
+            createdAt: new Date().toISOString()
+          });
+        } else {
+          await offlineQueue.add({
+            type: 'check-in',
+            payload: { date: todayStr, check_in_time: checkInTime, location_coordinates: locationStr, location_address: 'Mobile GPS', status: 'present' },
+            createdAt: new Date().toISOString()
+          });
+        }
+        await refreshPendingCount();
+        toast.success('Saved offline', {
+          description: 'Your attendance will sync when you reconnect.',
+          duration: 5000
         });
+        return;
       }
-      
-      // Specific error handling based on backend response codes
-      if (error.response?.status === 403) {
-        const msg = error.response?.data?.message || '';
-        
-        if (msg.includes('locked') || msg.includes('Locked')) {
-          toast.error('Attendance Locked', {
-            description: 'Attendance for this date has been locked by your branch. Please contact HR.',
-            duration: 6000
-          });
-        } else if (msg.toLowerCase().includes('location permission')) {
-          toast.error('Location Permission Required', {
-            description: msg,
-            duration: 7000
-          });
-        } else if (msg.includes('Location verification failed') || msg.includes('location')) {
-          toast.error('Location Verification Failed', {
-            description: 'You are not within the allowed check-in location. Please move closer to your assigned location and try again.',
-            duration: 7000
-          });
-        } else if (msg.includes('not within allowed location')) {
-          toast.error('Outside Allowed Area', {
-            description: 'You must be within your assigned location(s) to check in. Contact HR if you believe this is an error.',
-            duration: 7000
-          });
+
+      if (isClocked) {
+        const response = await attendanceApi.checkOut({
+          date: todayStr,
+          check_out_time: checkInTime,
+          location_coordinates: locationStr,
+          location_address: 'Mobile GPS'
+        });
+        toast.success(response?.message || 'Successfully clocked out', {
+          description: `Clocked out at ${new Date().toLocaleTimeString()}`
+        });
+        await refreshAttendance();
+      } else {
+        const response = await attendanceApi.checkIn({
+          date: todayStr,
+          check_in_time: checkInTime,
+          location_coordinates: locationStr,
+          location_address: 'Mobile GPS',
+          status: 'present'
+        });
+        toast.success(response?.message || 'Successfully clocked in', {
+          description: `Welcome back, ${user?.fullName}!`
+        });
+        if (response?.data?.attendance) {
+          setTodayRecord(response.data.attendance);
         } else {
-          toast.error('Access Denied', {
-            description: msg || 'You do not have permission to perform this action.',
-            duration: 5000
-          });
+          await refreshAttendance();
         }
-      } else if (error.response?.status === 409) {
-        toast.error('Already Checked In', {
-          description: 'You have already checked in today. Multiple check-ins are not allowed.',
-          duration: 5000
-        });
-      } else if (error.response?.status === 400) {
-        const msg = error.response?.data?.message || '';
-        if (msg.includes('not required')) {
-          toast.error('Check-in Disabled', {
-            description: 'Check-in is not enabled for your branch. Please contact HR for assistance.',
-            duration: 6000
-          });
-        } else if (msg.includes('required')) {
-          toast.error('Missing Information', {
-            description: msg || 'Please provide all required information.',
-            duration: 5000
-          });
+      }
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message || error?.message || '';
+
+      if (status === 403) {
+        if (msg.toLowerCase().includes('lock')) {
+          toast.error('Attendance Locked', { description: msg, duration: 6000 });
+        } else if (msg.toLowerCase().includes('location')) {
+          toast.error('Location Error', { description: msg, duration: 7000 });
         } else {
-          toast.error('Invalid Request', {
-            description: msg || 'Please try again.',
-            duration: 5000
-          });
+          toast.error('Access Denied', { description: msg || 'Permission denied.', duration: 5000 });
         }
-      } else if (error.response?.status === 404) {
-        toast.error('Record Not Found', {
-          description: 'No attendance record found. Please check in first before checking out.',
-          duration: 5000
-        });
-      } else if (isLocationPermissionError(error.message) || error.response?.data?.message?.toLowerCase?.().includes('location permission')) {
-        toast.error('Location Permission Required', {
-          description: error.response?.data?.message || error.message || 'Please allow location access and try again.',
-          duration: 7000
-        });
-      } else if (error.message?.toLowerCase().includes('location') || error.message?.includes('GPS')) {
-        toast.error('Location Error', {
-          description: error.message || 'Unable to get your location. Please ensure GPS is enabled.',
-          duration: 6000
-        });
-      } else if (error.response?.status === 401 || error.response?.status === 403) {
-        toast.error('Authentication Error', {
-          description: 'Your session may have expired. Please log in again.',
-          duration: 5000
-        });
-      } else if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || !error.response) {
+      } else if (status === 409) {
+        toast.error('Already Checked In', { description: 'You have already checked in today.', duration: 5000 });
+      } else if (status === 400) {
+        toast.error('Invalid Request', { description: msg || 'Please try again.', duration: 5000 });
+      } else if (status === 404) {
+        toast.error('Not Found', { description: msg || 'Record not found.', duration: 5000 });
+      } else if (!status || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
         toast.error('Network Error', {
-          description: 'Unable to connect to server. Please check your internet connection and try again.',
+          description: 'Could not reach the server. Your connection may be unstable.',
           duration: 6000
         });
       } else {
-        toast.error('Check-in Failed', {
-          description: error.response?.data?.message || error.message || 'An unexpected error occurred. Please try again.',
-          duration: 5000
-        });
+        toast.error('Check-in Failed', { description: msg || 'An unexpected error occurred.', duration: 5000 });
       }
     } finally {
-      if (loadingStage !== 'success') {
-        setShowLoadingModal(false);
-        setLoadingStage(null);
-        setLoading(false);
-      }
+      setIsSubmitting(false);
     }
   };
 
@@ -738,7 +657,24 @@ export function DashboardScreen() {
   };
 
   return (
-    <div className="p-4 pb-20 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 pt-7 pb-20 max-w-2xl mx-auto space-y-6">
+      {/* Connectivity Bar */}
+      <div
+        className={`fixed top-0 left-0 right-0 z-50 text-center text-[10px] font-medium py-0.5 transition-colors flex items-center justify-center gap-2 ${
+          isOnline
+            ? pendingCount > 0
+              ? 'bg-amber-500/20 text-amber-700'
+              : 'bg-green-500/10 text-green-700'
+            : 'bg-red-500/20 text-red-700'
+        }`}
+      >
+        {isOnline
+          ? pendingCount > 0
+            ? `${pendingCount} pending — syncing...`
+            : 'Connected'
+          : `Offline — ${pendingCount > 0 ? `${pendingCount} pending` : 'changes will sync when reconnected'}`
+        }
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -973,6 +909,7 @@ export function DashboardScreen() {
                 }`}
                 disabled={
                   loading ||
+                  isSubmitting ||
                   isOnLeaveToday ||
                   isHolidayToday ||
                   hasCheckedInToday ||
@@ -981,27 +918,32 @@ export function DashboardScreen() {
                 }
                 onClick={hasCheckedInToday ? undefined : handleClockAction}
               >
-                {loading
-                  ? 'Processing...'
-                  : isOnLeaveToday
-                  ? 'On Leave'
-                  : isHolidayToday
-                  ? 'Holiday'
-                  : hasCheckedInToday
-                  ? hasCheckedOutToday
-                    ? '✓ Checked Out'
-                    : '✓ Checked In'
-                  : todaySchedule?.is_working_day === false
-                  ? todaySchedule?.schedule_type === 'holiday' ? 'Holiday' : 'Non-Working Day'
-                  : !isClocked && assignmentError
-                  ? 'No Location Assigned'
-                  : !isClocked && locationError
-                  ? 'Enable Location'
-                  : !isClocked && isWithinRange === false
-                  ? 'Move Closer'
-                  : isClocked
-                  ? 'Clock Out'
-                  : 'Clock In'}
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Clocking...
+                  </span>
+                ) : loading ? (
+                  'Processing...'
+                ) : isOnLeaveToday ? (
+                  'On Leave'
+                ) : isHolidayToday ? (
+                  'Holiday'
+                ) : hasCheckedInToday ? (
+                  hasCheckedOutToday ? '✓ Checked Out' : '✓ Checked In'
+                ) : todaySchedule?.is_working_day === false ? (
+                  todaySchedule?.schedule_type === 'holiday' ? 'Holiday' : 'Non-Working Day'
+                ) : !isClocked && assignmentError ? (
+                  'No Location Assigned'
+                ) : !isClocked && locationError ? (
+                  'Enable Location'
+                ) : !isClocked && isWithinRange === false ? (
+                  'Move Closer'
+                ) : isClocked ? (
+                  'Clock Out'
+                ) : (
+                  'Clock In'
+                )}
               </Button>
             </motion.div>
           </div>
@@ -1226,76 +1168,7 @@ export function DashboardScreen() {
         </Card>
       )}
 
-      {/* Loading Modal */}
-      <AnimatePresence>
-        {showLoadingModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-2xl"
-            >
-              <div className="flex flex-col items-center gap-4">
-                {loadingStage === 'getting-location' && (
-                  <>
-                    <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                    <div className="text-center">
-                      <p className="text-base font-semibold text-gray-900">Getting Your Location</p>
-                      <p className="text-sm text-gray-500 mt-1">{loadingMessage}</p>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                      <motion.div
-                        initial={{ width: '0%' }}
-                        animate={{ width: '40%' }}
-                        transition={{ duration: 2 }}
-                        className="bg-blue-600 h-1.5 rounded-full"
-                      />
-                    </div>
-                  </>
-                )}
-                {loadingStage === 'submitting' && (
-                  <>
-                    <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                    <div className="text-center">
-                      <p className="text-base font-semibold text-gray-900">Submitting Attendance</p>
-                      <p className="text-sm text-gray-500 mt-1">{loadingMessage}</p>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                      <motion.div
-                        initial={{ width: '40%' }}
-                        animate={{ width: '80%' }}
-                        transition={{ duration: 2 }}
-                        className="bg-blue-600 h-1.5 rounded-full"
-                      />
-                    </div>
-                  </>
-                )}
-                {loadingStage === 'success' && (
-                  <>
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 200 }}
-                    >
-                      <CheckCircle className="w-10 h-10 text-green-600" />
-                    </motion.div>
-                    <div className="text-center">
-                      <p className="text-base font-semibold text-green-600">Success!</p>
-                      <p className="text-sm text-gray-500 mt-1">{loadingMessage}</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
     </div>
   );
 }
