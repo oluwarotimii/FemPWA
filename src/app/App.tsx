@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/app/contexts/AuthContext';
-import { PWAProvider } from '@/app/contexts/PWAContext';
+import { PWAProvider, usePWA } from '@/app/contexts/PWAContext';
 import { Toaster } from '@/app/components/ui/sonner';
 import { LoginScreen } from '@/app/components/screens/LoginScreen';
 import { ForgotPasswordScreen } from '@/app/components/screens/ForgotPasswordScreen';

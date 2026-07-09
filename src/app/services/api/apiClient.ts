@@ -12,6 +12,18 @@ const apiClient = axios.create({
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value: any) => void; reject: (reason?: any) => void }> = [];
 
+let cachedToken: string | null = null;
+
+const getToken = (): string | null => {
+  if (cachedToken) return cachedToken;
+  cachedToken = localStorage.getItem('authToken');
+  return cachedToken;
+};
+
+const setToken = (token: string | null) => {
+  cachedToken = token;
+};
+
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) {
@@ -26,7 +38,7 @@ const processQueue = (error: any, token: string | null = null) => {
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = getToken();
 
     const publicEndpoints = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/refresh'];
     const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
@@ -90,6 +102,7 @@ apiClient.interceptors.response.use(
           const newAccessToken = response.data.data.tokens.accessToken;
           const newRefreshToken = response.data.data.tokens.refreshToken;
 
+          setToken(newAccessToken);
           localStorage.setItem('authToken', newAccessToken);
           if (newRefreshToken) {
             localStorage.setItem('refreshToken', newRefreshToken);
@@ -120,6 +133,7 @@ apiClient.interceptors.response.use(
 );
 
 function clearAuthAndRedirect() {
+  setToken(null);
   localStorage.removeItem('authToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('userId');
@@ -130,4 +144,5 @@ function clearAuthAndRedirect() {
   window.location.href = '/login';
 }
 
+export { setToken, getToken };
 export default apiClient;

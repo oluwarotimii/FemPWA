@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { cachedGet } from '../offline/cacheWrapper';
 
 export interface Branch {
   id: number;
@@ -53,5 +54,27 @@ export const branchesApi = {
   getBranchWorkingDays: async (branchId: number): Promise<{ success: boolean; message: string; data: { workingDays: any[] } }> => {
     const response = await apiClient.get(`/branch-working-days/${branchId}/working-days`);
     return response.data;
+  },
+
+  // ==================== CACHED READ ENDPOINTS ====================
+
+  getAllBranchesCached: async (): Promise<{ success: boolean; message: string; data: { branches: Branch[] } }> => {
+    return cachedGet('branches',
+      async () => {
+        const res = await apiClient.get('/branches');
+        return { success: res.data.success, data: res.data.data?.branches || [], message: res.data.message };
+      },
+      5 * 60 * 1000
+    );
+  },
+
+  getBranchHolidaysCached: async (branchId: number): Promise<{ success: boolean; message: string; data: { holidays: any[] } }> => {
+    return cachedGet('holidays',
+      async () => {
+        const res = await apiClient.get(`/branches/${branchId}/holidays`);
+        return { success: res.data.success, data: res.data.data?.holidays || [], message: res.data.message };
+      },
+      5 * 60 * 1000
+    );
   },
 };

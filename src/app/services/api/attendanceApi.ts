@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { cachedGet } from '../offline/cacheWrapper';
 
 interface AttendanceRecord {
   id: number;
@@ -206,5 +207,91 @@ export const attendanceApi = {
   getTimeOffBankBalance: async (): Promise<{ success: boolean; message: string; data: { timeOffBanks: TimeOffBank[] } }> => {
     const response = await apiClient.get('/shift-scheduling/time-off-banks/my-balance');
     return response.data;
+  },
+
+  // ==================== CACHED READ ENDPOINTS ====================
+
+  getMyAttendanceCached: async (params?: { startDate?: string; endDate?: string; limit?: number; page?: number }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      attendance: AttendanceRecord[];
+      pagination?: {
+        currentPage: number;
+        totalPages: number;
+        totalItems: number;
+        itemsPerPage: number;
+      };
+    }
+  }> => {
+    return cachedGet('attendance',
+      async () => {
+        const res = await apiClient.get('/attendance/my', { params });
+        return { success: res.data.success, data: res.data.data, message: res.data.message };
+      },
+      2 * 60 * 1000
+    );
+  },
+
+  getMyAttendanceSummaryCached: async (params?: { startDate?: string; endDate?: string }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      summary: {
+        totalDays: number;
+        presentDays: number;
+        lateDays: number;
+        absentDays: number;
+        onTimeDays: number;
+        totalHoursWorked: number;
+        averageHoursPerDay: number;
+      };
+    };
+  }> => {
+    return cachedGet('attendance',
+      async () => {
+        const res = await apiClient.get('/attendance/my/summary', { params });
+        return { success: res.data.success, data: res.data.data, message: res.data.message };
+      },
+      2 * 60 * 1000
+    );
+  },
+
+  getMyLocationsCached: async (): Promise<{
+    success: boolean;
+    message: string;
+    data: { locations: AttendanceLocation[]; assigned_location_ids: number[] };
+  }> => {
+    return cachedGet('locations',
+      async () => {
+        const res = await apiClient.get('/attendance/my-locations');
+        return { success: res.data.success, data: res.data.data, message: res.data.message };
+      },
+      5 * 60 * 1000
+    );
+  },
+
+  getMyAttendanceSettingsCached: async (params?: { branchId?: number }): Promise<{
+    success: boolean;
+    message: string;
+    data: { settings: any };
+  }> => {
+    return cachedGet('attendanceSettings',
+      async () => {
+        const res = await apiClient.get('/attendance/settings', { params });
+        return { success: res.data.success, data: res.data.data, message: res.data.message };
+      },
+      5 * 60 * 1000
+    );
+  },
+
+  getShiftTimingsCached: async (): Promise<{ success: boolean; message: string; data: { shiftTimings: ShiftTiming[] } }> => {
+    return cachedGet('todayShift',
+      async () => {
+        const res = await apiClient.get('/attendance/shift-timings');
+        return { success: res.data.success, data: res.data.data, message: res.data.message };
+      },
+      5 * 60 * 1000
+    );
   },
 };
