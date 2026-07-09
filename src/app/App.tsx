@@ -23,12 +23,14 @@ import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
 import { FloatingDayScreen } from '@/app/components/screens/FloatingDayScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
+import { PullToRefresh } from '@/app/components/PullToRefresh';
 import { DevTools } from '@/app/components/DevTools';
 import { GuarantorPage } from '@/app/pages/GuarantorPage';
 import { NotFoundScreen } from '@/app/components/screens/NotFoundScreen';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
+  const { isInstalled } = usePWA();
   const location = useLocation();
 
   // Show loading state while checking authentication
@@ -68,9 +70,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // The condition !user?.needs_password_change ensures it doesn't show on password change screen
   return (
     <>
-      <div className="min-h-screen pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-        {children}
-      </div>
+      <PullToRefresh isStandalone={isInstalled}>
+        <div className="min-h-screen pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+          {children}
+        </div>
+      </PullToRefresh>
       <BottomNavigation key={user?.id || 'bottom-nav'} />
     </>
   );
