@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { cachedGet } from '../offline/cacheWrapper';
 
 // ==================== INTERFACES ====================
 
@@ -508,5 +509,71 @@ export const leaveApi = {
   }> => {
     const response = await apiClient.get('/leave/history', { params });
     return response.data;
+  },
+
+  // ==================== CACHED READ ENDPOINTS ====================
+
+  getLeaveTypesCached: async (): Promise<{
+    success: boolean;
+    message: string;
+    data: { leaveTypes: LeaveType[] };
+  }> => {
+    return cachedGet('leaveBalance',
+      async () => {
+        const res = await apiClient.get('/leave/types');
+        return { success: res.data.success, data: res.data.data?.leaveTypes || [], message: res.data.message };
+      }
+    );
+  },
+
+  getLeaveBalancesCached: async (): Promise<{
+    success: boolean;
+    message: string;
+    data: { balances: LeaveBalance[] };
+  }> => {
+    return cachedGet('leaveBalance',
+      async () => {
+        const res = await apiClient.get('/leave/balance');
+        return { success: res.data.success, data: res.data.data?.balances || [], message: res.data.message };
+      },
+      2 * 60 * 1000
+    );
+  },
+
+  getMyLeaveRequestsCached: async (params?: {
+    status?: 'submitted' | 'approved' | 'rejected' | 'cancelled';
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      leaveRequests: LeaveRequest[];
+      pagination: PaginationResponse;
+    };
+  }> => {
+    return cachedGet('leaveBalance',
+      async () => {
+        const res = await apiClient.get('/leave/my-requests', { params });
+        return { success: res.data.success, data: res.data.data, message: res.data.message };
+      },
+      60 * 1000
+    );
+  },
+
+  getMyAllocationsCached: async (): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      allocations: LeaveAllocation[];
+    };
+  }> => {
+    return cachedGet('leaveBalance',
+      async () => {
+        const res = await apiClient.get('/leave/allocations/my-allocations');
+        return { success: res.data.success, data: res.data.data?.allocations || [], message: res.data.message };
+      },
+      2 * 60 * 1000
+    );
   },
 };

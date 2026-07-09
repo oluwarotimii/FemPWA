@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { authApi, staffApi } from '@/app/services/api'; // Ensure staffApi is imported
+import { authApi, staffApi } from '@/app/services/api';
+import { setToken } from '@/app/services/api/apiClient';
 
 interface User {
   id: number;
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('authToken');
 
       if (token) {
+        setToken(token);
         const tokenExpiry = localStorage.getItem('tokenExpiry');
         if (tokenExpiry) {
           const expiryTime = parseInt(tokenExpiry);
@@ -167,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Always persistent login (90 days)
+      setToken(token);
       localStorage.setItem('authToken', token);
       if (refreshToken) {
         localStorage.setItem('refreshToken', refreshToken);
@@ -219,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      setToken(null);
       setUser(null);
       setPermissions(null);
       // Clear all storage

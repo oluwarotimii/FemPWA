@@ -1,5 +1,5 @@
 const DB_NAME = 'femhr-cache';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORE_NAMES = [
   'syncMeta',
@@ -22,8 +22,11 @@ export const STORE_NAMES = [
 
 export type StoreName = typeof STORE_NAMES[number];
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -34,8 +37,18 @@ function openDB(): Promise<IDBDatabase> {
       });
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
+    request.onclose = () => {
+      dbPromise = null;
+    };
+    request.onversionchange = () => {
+      dbPromise = null;
+    };
   });
+  return dbPromise;
 }
 
 export interface SyncMutation {
@@ -56,8 +69,8 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, 'readwrite');
       tx.objectStore(storeName).put({ data, timestamp: Date.now() }, '_main');
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   },
 
@@ -66,8 +79,8 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, 'readonly');
       const request = tx.objectStore(storeName).get('_main');
-      request.onsuccess = () => { db.close(); resolve(request.result || null); };
-      request.onerror = () => { db.close(); reject(request.error); };
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
     });
   },
 
@@ -76,8 +89,8 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, 'readwrite');
       tx.objectStore(storeName).delete('_main');
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   },
 
@@ -90,7 +103,7 @@ export const dataStore = {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       })
-    )).then(() => { db.close(); });
+    )).then(() => {});
   },
 
   // ── Bulk save from full sync ──
@@ -119,15 +132,14 @@ export const dataStore = {
         tx.objectStore(store).put({ data: value, timestamp: Date.now() }, '_main');
       }
     }
-    // Store sync timestamp
     tx.objectStore('syncMeta').put({ data: { lastSyncAt: data.serverTime || new Date().toISOString() }, timestamp: Date.now() }, '_main');
     return new Promise((resolve, reject) => {
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   },
 
-  // ── Mutations queue ──
+  // ── Mutations queue (check-in/out) ──
 
   async queueMutation(mutation: Omit<SyncMutation, 'id' | 'createdAt' | 'retryCount'>): Promise<void> {
     const db = await openDB();
@@ -135,8 +147,8 @@ export const dataStore = {
       const tx = db.transaction('mutations', 'readwrite');
       const item: SyncMutation = { ...mutation, createdAt: new Date().toISOString(), retryCount: 0 };
       tx.objectStore('mutations').add(item);
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   },
 
@@ -145,8 +157,8 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction('mutations', 'readonly');
       const request = tx.objectStore('mutations').getAll();
-      request.onsuccess = () => { db.close(); resolve(request.result || []); };
-      request.onerror = () => { db.close(); reject(request.error); };
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
     });
   },
 
@@ -155,8 +167,8 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction('mutations', 'readonly');
       const request = tx.objectStore('mutations').count();
-      request.onsuccess = () => { db.close(); resolve(request.result); };
-      request.onerror = () => { db.close(); reject(request.error); };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
   },
 
@@ -165,8 +177,26 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction('mutations', 'readwrite');
       tx.objectStore('mutations').delete(id);
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+
+  async incrementMutationRetry(id: number): Promise<void> {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('mutations', 'readwrite');
+      const store = tx.objectStore('mutations');
+      const request = store.get(id);
+      request.onsuccess = () => {
+        const item = request.result;
+        if (item) {
+          item.retryCount = (item.retryCount || 0) + 1;
+          store.put(item);
+        }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   },
 
@@ -175,8 +205,8 @@ export const dataStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction('mutations', 'readwrite');
       tx.objectStore('mutations').clear();
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   },
 
