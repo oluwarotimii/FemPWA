@@ -274,18 +274,8 @@ export const shiftApi = {
       shiftAssignments: EmployeeShiftAssignment[];
     };
   }> => {
-    console.log('[ShiftAPI] Fetching my shift assignments...');
-    console.log('[ShiftAPI] Request: GET /shift-scheduling/employee-shift-assignments/my');
-    try {
-      const response = await apiClient.get('/shift-scheduling/employee-shift-assignments/my');
-      console.log('[ShiftAPI] Response:', response.data);
-      console.log('[ShiftAPI] Found', response.data.data?.shiftAssignments?.length || 0, 'shift assignments');
-      return response.data;
-    } catch (error: any) {
-      console.error('[ShiftAPI] Error fetching my shift assignments:', error.message);
-      console.error('[ShiftAPI] Response data:', error.response?.data);
-      throw error;
-    }
+    const response = await apiClient.get('/shift-scheduling/employee-shift-assignments/my');
+    return response.data;
   },
 
   /**
@@ -554,17 +544,8 @@ export const shiftApi = {
       exceptions: ShiftException[];
     };
   }> => {
-    console.log('[ShiftAPI] Fetching my shift exceptions...', params);
-    try {
-      const response = await apiClient.get('/shift-scheduling/exceptions/my', { params });
-      console.log('[ShiftAPI] Response:', response.data);
-      console.log('[ShiftAPI] Found', response.data.data?.exceptions?.length || 0, 'exceptions');
-      return response.data;
-    } catch (error: any) {
-      console.error('[ShiftAPI] Error fetching my shift exceptions:', error.message);
-      console.error('[ShiftAPI] Response data:', error.response?.data);
-      throw error;
-    }
+    const response = await apiClient.get('/shift-scheduling/exceptions/my', { params });
+    return response.data;
   },
 
   /**
@@ -589,18 +570,8 @@ export const shiftApi = {
       }>;
     };
   }> => {
-    console.log('[ShiftAPI] Fetching my upcoming shifts...', params);
-    console.log('[ShiftAPI] Request: GET /my-shifts/upcoming');
-    try {
-      const response = await apiClient.get('/my-shifts/upcoming', { params });
-      console.log('[ShiftAPI] Response:', response.data);
-      console.log('[ShiftAPI] Found', response.data.data?.shifts?.length || 0, 'upcoming shifts');
-      return response.data;
-    } catch (error: any) {
-      console.error('[ShiftAPI] Error fetching upcoming shifts:', error.message);
-      console.error('[ShiftAPI] Response data:', error.response?.data);
-      throw error;
-    }
+    const response = await apiClient.get('/my-shifts/upcoming', { params });
+    return response.data;
   },
 
   /**

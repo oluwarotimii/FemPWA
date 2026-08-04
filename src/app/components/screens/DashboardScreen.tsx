@@ -43,13 +43,14 @@ const isLocationPermissionError = (value: unknown) => {
   return normalized.includes('permission denied') || normalized.includes('location permission required');
 };
 
+const debugEnabled = import.meta.env.DEV || localStorage.getItem('attendance_debug') === '1';
+
 export function DashboardScreen() {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showGeoDetails, setShowGeoDetails] = useState(false);
-  const debugEnabled = import.meta.env.DEV || localStorage.getItem('attendance_debug') === '1';
 
   // Track today's attendance status
   const [todayRecord, setTodayRecord] = useState<any | null>(null);
@@ -91,18 +92,12 @@ export function DashboardScreen() {
   });
 
   // Refresh attendance records
-  const refreshAttendance = async () => {
+  const refreshAttendance = useCallback(async () => {
     try {
-      // Standardize "Today" string
       const todayStr = format(new Date(), "yyyy-MM-dd");
-
       const now = new Date();
       const startDate = format(startOfMonth(now), "yyyy-MM-dd");
       const endDate = format(endOfMonth(now), "yyyy-MM-dd");
-      
-      console.log('=== Refreshing Attendance ===');
-      console.log('Today:', todayStr);
-      console.log('Date range:', startDate, 'to', endDate);
 
       const response = await attendanceApi.getMyAttendance({
         startDate,
@@ -111,44 +106,26 @@ export function DashboardScreen() {
       });
       const records = response.data?.attendance || [];
 
-      // Fix: Deduplicate records by date using local date to avoid timezone mismatch
       const uniqueRecords = records.reduce((acc: any[], current: any) => {
-        const d = new Date(current.date);
-        const dateStr = format(d, "yyyy-MM-dd");
-        const existing = acc.find((r: any) => {
-          const ed = new Date(r.date);
-          return format(ed, "yyyy-MM-dd") === dateStr;
-        });
+        const dateStr = format(new Date(current.date), "yyyy-MM-dd");
+        const existing = acc.find((r: any) => format(new Date(r.date), "yyyy-MM-dd") === dateStr);
         if (!existing) {
           acc.push(current);
         } else if (current.status === 'present' || current.status === 'late') {
-          const index = acc.indexOf(existing);
-          acc[index] = current;
+          acc[acc.indexOf(existing)] = current;
         }
         return acc;
       }, []);
 
-      const sortedRecords = [...uniqueRecords].sort((a, b) => 
+      const sortedRecords = [...uniqueRecords].sort((a, b) =>
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
       setAttendanceRecords(sortedRecords);
 
-      console.log('Total records fetched:', records.length);
-      console.log('Unique records:', uniqueRecords.length);
-      
-      // Fix: Robust "Today" record finding (local date comparison)
-      const todaysRecord = uniqueRecords.find((r: any) => {
-        const rd = new Date(r.date);
-        return format(rd, "yyyy-MM-dd") === todayStr;
-      });
-
-      if (!todaysRecord) {
-        console.log('✗ No record found for today');
-      } else {
-        console.log('✓ Found today\'s record:', todaysRecord);
-      }
-      
+      const todaysRecord = uniqueRecords.find((r: any) =>
+        format(new Date(r.date), "yyyy-MM-dd") === todayStr
+      );
       setTodayRecord(todaysRecord || null);
 
       // Fetch today's schedule and exceptions in parallel
@@ -186,7 +163,7 @@ export function DashboardScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch branch attendance settings (staff-safe; does not require branches:read)
   const fetchBranchInfo = async () => {
@@ -278,26 +255,35 @@ export function DashboardScreen() {
 
     startWatching();
 
-    // Load cached data from IndexedDB + sessionStorage, then refresh from server
+    // Load cached data first for instant UI, then refresh from server
     loadCachedDashboardData();
-    Promise.allSettled([
-      fetchBranchInfo(),
-      fetchMyAssignedLocations(),
-      refreshAttendance(),
-      // Sync: fetch all dashboard data in one call and cache it
-      syncApi.getDashboardData().then(res => {
-        if (res.success && res.data) {
-          const d = res.data;
-          if (d.assignedLocations?.length) setAssignedLocations(d.assignedLocations);
-          if (d.branchInfo) setBranchInfo(d.branchInfo);
-          if (d.todayAttendance) setTodayRecord(d.todayAttendance);
-          if (d.monthAttendance?.length) setAttendanceRecords(d.monthAttendance);
-          if (d.todaySchedule) setTodaySchedule(d.todaySchedule);
-          if (d.shiftExceptions?.length) setMyExceptions(d.shiftExceptions);
-          updateDataStoreFromSync(d);
+
+    // Try the single sync endpoint first; only fall back to individual calls if it fails
+    syncApi.getDashboardData().then(res => {
+      if (res.success && res.data) {
+        const d = res.data;
+        if (d.assignedLocations?.length) setAssignedLocations(d.assignedLocations);
+        if (d.branchInfo) setBranchInfo(d.branchInfo);
+        if (d.todayAttendance) setTodayRecord(d.todayAttendance);
+        if (d.monthAttendance?.length) {
+          const sorted = [...d.monthAttendance].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+          setAttendanceRecords(sorted);
         }
-      }).catch(() => {/* non-fatal; fallback to individual API calls */})
-    ]);
+        if (d.todaySchedule) setTodaySchedule(d.todaySchedule);
+        if (d.shiftExceptions?.length) setMyExceptions(d.shiftExceptions);
+        updateDataStoreFromSync(d);
+        setLoading(false);
+      }
+    }).catch(() => {
+      // Sync endpoint unavailable — fall back to individual calls
+      Promise.allSettled([
+        fetchBranchInfo(),
+        fetchMyAssignedLocations(),
+        refreshAttendance(),
+      ]);
+    });
 
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);

@@ -71,78 +71,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       const token = localStorage.getItem('authToken');
 
-      if (token) {
-        setToken(token);
-        const tokenExpiry = localStorage.getItem('tokenExpiry');
-        if (tokenExpiry) {
-          const expiryTime = parseInt(tokenExpiry);
-          if (Date.now() > expiryTime) {
-            console.log('Token has expired, logging out');
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('tokenExpiry');
-            setUser(null);
-            setIsLoading(false);
-            return;
-          }
-        }
+      if (!token) return;
 
-        const response = await staffApi.getCurrentUserStaffDetails();
+      setToken(token);
 
-        try {
-          const permResponse = await authApi.getPermissions();
-          if (permResponse.success && permResponse.data?.permissions) {
-            setPermissions(permResponse.data.permissions);
-            localStorage.setItem('permissions', JSON.stringify(permResponse.data.permissions));
-          }
-        } catch (permError) {
-          console.warn('Failed to refresh permissions from server, using cached:', permError);
-          const storedPermissions = localStorage.getItem('permissions');
-          if (storedPermissions) {
-            try {
-              const parsed = JSON.parse(storedPermissions);
-              setPermissions(parsed);
-            } catch (e) {
-              console.error('Failed to parse stored permissions:', e);
-            }
-          }
-        }
-
-        if (response && response.success && response.data) {
-          let userData = response.data.staff || response.data.user || response.data;
-
-          if (response.data.staff) {
-            userData = {
-              id: response.data.staff.user_id,
-              email: response.data.staff.email,
-              fullName: response.data.staff.full_name,
-              roleId: response.data.staff.role_id || 0,
-              branchId: response.data.staff.branch_id || 0,
-              avatar: response.data.staff.profile_picture,
-              phone: response.data.staff.phone,
-              designation: response.data.staff.designation,
-              department: response.data.staff.department,
-              needs_password_change: !!response.data.staff.must_change_password,
-              needs_profile_completion: !response.data.staff.phone
-            };
-          }
-
-          setUser(userData);
-          console.log('Auth initialized: User restored');
-        } else {
-          console.log('No user data returned from server');
-        }
-      } else {
-        console.log('No token found, user is not authenticated');
+      // Check token expiry
+      const tokenExpiry = localStorage.getItem('tokenExpiry');
+      if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('tokenExpiry');
+        setUser(null);
+        return;
       }
+
+      // Restore cached user + permissions instantly so the app is usable offline
+      const cachedUserData = localStorage.getItem('userData');
+      const cachedPerms = localStorage.getItem('permissions');
+      let restoredFromCache = false;
+
+      if (cachedUserData) {
+        try {
+          const parsed = JSON.parse(cachedUserData);
+          // Normalize cached shape — login stores the raw API user object
+          const cachedUser: User = parsed.id
+            ? {
+                id: parsed.id,
+                email: parsed.email,
+                fullName: parsed.fullName,
+                roleId: parsed.roleId,
+                branchId: parsed.branchId,
+                avatar: parsed.profile_picture || parsed.avatar,
+                phone: parsed.phone,
+                designation: parsed.designation,
+                department: parsed.department,
+                needs_password_change: parsed.needs_password_change ?? false,
+                needs_profile_completion: parsed.needs_profile_completion ?? false,
+              }
+            : parsed;
+          setUser(cachedUser);
+          restoredFromCache = true;
+        } catch {
+          // Ignore corrupt cache
+        }
+      }
+
+      if (cachedPerms) {
+        try { setPermissions(JSON.parse(cachedPerms)); } catch { /* ignore */ }
+      }
+
+      // Fetch fresh data from the server in the background.
+      // If offline or server unreachable, keep the cached user — don't log them out.
+      const [response, permResult] = await Promise.allSettled([
+        staffApi.getCurrentUserStaffDetails(),
+        authApi.getPermissions(),
+      ]);
+
+      if (permResult.status === 'fulfilled') {
+        const permResponse = permResult.value;
+        if (permResponse.success && permResponse.data?.permissions) {
+          setPermissions(permResponse.data.permissions);
+          localStorage.setItem('permissions', JSON.stringify(permResponse.data.permissions));
+        }
+      }
+
+      if (response.status === 'fulfilled' && response.value?.success && response.value.data) {
+        const data = response.value.data;
+        let userData: User = data.staff || data.user || data;
+
+        if (data.staff) {
+          userData = {
+            id: data.staff.user_id,
+            email: data.staff.email,
+            fullName: data.staff.full_name,
+            roleId: data.staff.role_id || 0,
+            branchId: data.staff.branch_id || 0,
+            avatar: data.staff.profile_picture,
+            phone: data.staff.phone,
+            designation: data.staff.designation,
+            department: data.staff.department,
+            needs_password_change: !!data.staff.must_change_password,
+            needs_profile_completion: !data.staff.phone,
+          };
+        }
+
+        setUser(userData);
+      } else if (response.status === 'rejected' && !restoredFromCache) {
+        // Server unreachable AND no cached data → truly can't restore session
+        setUser(null);
+      }
+      // If server call fails but we already restored from cache, keep the user logged in
     } catch (error) {
       console.error('Error initializing auth:', error);
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('tokenExpiry');
-      setUser(null);
+      // Only clear session on explicit auth rejection (401), not network failures
+      const status = (error as any)?.response?.status;
+      if (status === 401) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('tokenExpiry');
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -150,15 +180,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      console.log('Starting login process...');
       const response = await authApi.login({ email, password });
-      console.log('Login API response:', response);
 
       if (!response || !response.success || !response.data) {
         throw new Error(response?.message || 'Invalid response from server');
       }
 
-      console.log('Extracting user and token data...');
       const userData = response.data.user;
       const token = response.data.tokens?.accessToken || response.data.token;
       const refreshToken = response.data.tokens?.refreshToken || null;
@@ -177,12 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('userId', userData.id.toString());
       const expiryTime = Date.now() + (90 * 24 * 60 * 60 * 1000);
       localStorage.setItem('tokenExpiry', expiryTime.toString());
-      console.log('Persistent login enabled - expires in 90 days');
-      
-      // Always store user data in localStorage for quick access
-      if (userData) {
-        localStorage.setItem('userData', JSON.stringify(userData));
-      }
+      localStorage.setItem('userData', JSON.stringify(userData));
 
       // Store permissions if provided
       if (userPermissions) {
@@ -205,13 +227,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needs_profile_completion: userData.needs_profile_completion ?? false
       };
 
-      // Set user state and force a small delay to ensure state propagates
       setUser(mappedUser);
-      console.log('Login successful! User state set:', mappedUser);
-
       return mappedUser;
     } catch (error: any) {
-      console.error('Login error:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Invalid credentials';
       throw new Error(errorMessage);
     }
@@ -237,20 +255,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-refresh token before it expires
-  useEffect(() => {
-    const refreshInterval = 24 * 60 * 60 * 1000; // Check every 24 hours
-    const refreshTimer = setInterval(async () => {
-      try {
-        console.log('Auto-refreshing token...');
-        await initializeAuth();
-      } catch (error) {
-        console.error('Auto-refresh failed:', error);
-      }
-    }, refreshInterval);
-
-    return () => clearInterval(refreshTimer);
-  }, []);
 
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);

@@ -13,13 +13,10 @@ export function NotificationsScreen() {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        console.log('Fetching notifications...'); // Debug log
-        console.log('Current token status:', localStorage.getItem('authToken') ? 'Available' : 'Missing');
         const response = await notificationApi.getNotifications({ limit: 20 });
         setNotificationsList(response.data.notifications);
       } catch (error) {
         console.error('Failed to fetch notifications:', error);
-        console.error('Error response:', error.response); // Debug log
         toast.error('Failed to load notifications');
       } finally {
         setLoading(false);

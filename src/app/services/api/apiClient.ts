@@ -1,9 +1,8 @@
 import axios from 'axios';
 
-// Create an axios instance with base configuration
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://hrapi.femtechaccess.com.ng/api',
-  timeout: 30000,
+  timeout: 45000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -26,56 +25,44 @@ const setToken = (token: string | null) => {
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
-    if (error) {
-      reject(error);
-    } else {
-      resolve(token);
-    }
+    if (error) reject(error);
+    else resolve(token);
   });
   failedQueue = [];
 };
 
-// Request interceptor to add auth token
+// Request interceptor — attach auth token
 apiClient.interceptors.request.use(
   (config) => {
     const token = getToken();
-
     const publicEndpoints = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/refresh'];
-    const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
-
-    if (!token && !isPublicEndpoint) {
-      console.warn('No authentication token found. Request may fail.', config.url);
-    } else if (token && !isPublicEndpoint) {
-      if (config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    const isPublicEndpoint = publicEndpoints.some(ep => config.url?.includes(ep));
+    if (token && !isPublicEndpoint && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle 401 with auto-refresh
+// Response interceptor — handle 401 with token refresh
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      const isLoginRequest = originalRequest?.url?.includes('/auth/login') || originalRequest?.url?.includes('/auth/refresh');
+      const isLoginOrRefresh =
+        originalRequest?.url?.includes('/auth/login') ||
+        originalRequest?.url?.includes('/auth/refresh');
       const isLoginPage = window.location.pathname === '/login';
 
-      if (isLoginRequest || isLoginPage) {
+      if (isLoginOrRefresh || isLoginPage) {
         return Promise.reject(error);
       }
 
       const refreshToken = localStorage.getItem('refreshToken');
-
       if (!refreshToken) {
-        console.log('No refresh token available, redirecting to login');
         clearAuthAndRedirect();
         return Promise.reject(error);
       }
@@ -99,21 +86,14 @@ apiClient.interceptors.response.use(
         );
 
         if (response.data?.success && response.data?.data?.tokens) {
-          const newAccessToken = response.data.data.tokens.accessToken;
-          const newRefreshToken = response.data.data.tokens.refreshToken;
-
-          setToken(newAccessToken);
-          localStorage.setItem('authToken', newAccessToken);
-          if (newRefreshToken) {
-            localStorage.setItem('refreshToken', newRefreshToken);
-          }
-
-          processQueue(null, newAccessToken);
-
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          const { accessToken: newAccess, refreshToken: newRefresh } = response.data.data.tokens;
+          setToken(newAccess);
+          localStorage.setItem('authToken', newAccess);
+          if (newRefresh) localStorage.setItem('refreshToken', newRefresh);
+          processQueue(null, newAccess);
+          originalRequest.headers.Authorization = `Bearer ${newAccess}`;
           return apiClient(originalRequest);
         }
-
         throw new Error('Token refresh failed');
       } catch (refreshError) {
         processQueue(refreshError, null);
@@ -127,7 +107,6 @@ apiClient.interceptors.response.use(
     if (error.response?.data) {
       error.apiError = error.response.data;
     }
-
     return Promise.reject(error);
   }
 );
@@ -142,6 +121,20 @@ function clearAuthAndRedirect() {
   sessionStorage.removeItem('authToken');
   sessionStorage.removeItem('userId');
   window.location.href = '/login';
+}
+
+/** Classify an axios error into a human-readable message */
+export function getNetworkErrorMessage(error: any): string {
+  if (!navigator.onLine) {
+    return 'No internet connection. Please check your network and try again.';
+  }
+  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+    return 'The server is taking too long to respond. Please try again in a moment.';
+  }
+  if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+    return 'Unable to reach the server. Please check your connection and try again.';
+  }
+  return error.response?.data?.message || error.message || 'An unexpected error occurred.';
 }
 
 export { setToken, getToken };
