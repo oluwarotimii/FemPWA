@@ -1,32 +1,43 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from '@/app/contexts/AuthContext';
 import { PWAProvider, usePWA } from '@/app/contexts/PWAContext';
 import { Toaster } from '@/app/components/ui/sonner';
-import { LoginScreen } from '@/app/components/screens/LoginScreen';
-import { ForgotPasswordScreen } from '@/app/components/screens/ForgotPasswordScreen';
-import { ResetPasswordScreen } from '@/app/components/screens/ResetPasswordScreen';
-import { DashboardScreen } from '@/app/components/screens/DashboardScreen';
-import { AttendanceHistoryScreen } from '@/app/components/screens/AttendanceHistoryScreen';
-import { LeaveManagementScreen } from '@/app/components/screens/LeaveManagementScreen';
-import { LeaveRequestManagementScreen } from '@/app/components/screens/LeaveRequestManagementScreen';
-import { LeaveHistoryScreen } from '@/app/components/screens/LeaveHistoryScreen';
-import { NewLeaveRequestScreen } from '@/app/components/screens/NewLeaveRequestScreen';
-import { ShiftsManagementScreen } from '@/app/components/screens/ShiftsManagementScreen';
-import { ShiftExceptionManagementScreen } from '@/app/components/screens/ShiftExceptionManagementScreen';
-import { NotificationsScreen } from '@/app/components/screens/NotificationsScreen';
-import { FormsScreen } from '@/app/components/screens/FormsScreen';
-import { ProfileScreen } from '@/app/components/screens/ProfileScreen';
-import { ChangePasswordScreen } from './components/screens/ChangePasswordScreen';
-import { FillPersonalDetailsScreen } from '@/app/components/screens/FillPersonalDetailsScreen';
-import { StaffDetailsFormScreen } from '@/app/components/screens/StaffDetailsFormScreen';
-import { HolidaysScreen } from '@/app/components/screens/HolidaysScreen';
-import { FloatingDayScreen } from '@/app/components/screens/FloatingDayScreen';
 import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { PullToRefresh } from '@/app/components/PullToRefresh';
 import { DevTools } from '@/app/components/DevTools';
-import { GuarantorPage } from '@/app/pages/GuarantorPage';
-import { NotFoundScreen } from '@/app/components/screens/NotFoundScreen';
+
+// Eagerly loaded — shown during auth loading / on the login path
+import { LoginScreen } from '@/app/components/screens/LoginScreen';
+import { ForgotPasswordScreen } from '@/app/components/screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '@/app/components/screens/ResetPasswordScreen';
+
+// Lazily loaded — not needed until user navigates there
+const DashboardScreen = lazy(() => import('@/app/components/screens/DashboardScreen').then(m => ({ default: m.DashboardScreen })));
+const AttendanceHistoryScreen = lazy(() => import('@/app/components/screens/AttendanceHistoryScreen').then(m => ({ default: m.AttendanceHistoryScreen })));
+const LeaveManagementScreen = lazy(() => import('@/app/components/screens/LeaveManagementScreen').then(m => ({ default: m.LeaveManagementScreen })));
+const LeaveRequestManagementScreen = lazy(() => import('@/app/components/screens/LeaveRequestManagementScreen').then(m => ({ default: m.LeaveRequestManagementScreen })));
+const LeaveHistoryScreen = lazy(() => import('@/app/components/screens/LeaveHistoryScreen').then(m => ({ default: m.LeaveHistoryScreen })));
+const NewLeaveRequestScreen = lazy(() => import('@/app/components/screens/NewLeaveRequestScreen').then(m => ({ default: m.NewLeaveRequestScreen })));
+const ShiftsManagementScreen = lazy(() => import('@/app/components/screens/ShiftsManagementScreen').then(m => ({ default: m.ShiftsManagementScreen })));
+const ShiftExceptionManagementScreen = lazy(() => import('@/app/components/screens/ShiftExceptionManagementScreen').then(m => ({ default: m.ShiftExceptionManagementScreen })));
+const NotificationsScreen = lazy(() => import('@/app/components/screens/NotificationsScreen').then(m => ({ default: m.NotificationsScreen })));
+const FormsScreen = lazy(() => import('@/app/components/screens/FormsScreen').then(m => ({ default: m.FormsScreen })));
+const ProfileScreen = lazy(() => import('@/app/components/screens/ProfileScreen').then(m => ({ default: m.ProfileScreen })));
+const ChangePasswordScreen = lazy(() => import('./components/screens/ChangePasswordScreen').then(m => ({ default: m.ChangePasswordScreen })));
+const FillPersonalDetailsScreen = lazy(() => import('@/app/components/screens/FillPersonalDetailsScreen').then(m => ({ default: m.FillPersonalDetailsScreen })));
+const StaffDetailsFormScreen = lazy(() => import('@/app/components/screens/StaffDetailsFormScreen').then(m => ({ default: m.StaffDetailsFormScreen })));
+const HolidaysScreen = lazy(() => import('@/app/components/screens/HolidaysScreen').then(m => ({ default: m.HolidaysScreen })));
+const FloatingDayScreen = lazy(() => import('@/app/components/screens/FloatingDayScreen').then(m => ({ default: m.FloatingDayScreen })));
+const GuarantorPage = lazy(() => import('@/app/pages/GuarantorPage').then(m => ({ default: m.GuarantorPage })));
+const NotFoundScreen = lazy(() => import('@/app/components/screens/NotFoundScreen').then(m => ({ default: m.NotFoundScreen })));
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#1A2B3C]" />
+  </div>
+);
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -96,6 +107,7 @@ function AppRoutes() {
   }
 
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       <Route
         path="/login"
@@ -243,6 +255,7 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<NotFoundScreen />} />
     </Routes>
+    </Suspense>
   );
 }
 

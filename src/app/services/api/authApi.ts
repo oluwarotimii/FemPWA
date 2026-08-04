@@ -1,3 +1,4 @@
+import axios from 'axios';
 import apiClient from './apiClient';
 
 interface LoginCredentials {
@@ -41,23 +42,65 @@ interface ChangePasswordRequest {
   confirmNewPassword?: string;
 }
 
+// Retry a login attempt up to maxAttempts times on network/timeout errors only.
+// Never retries on auth errors (401/403) — wrong password should fail immediately.
+async function loginWithRetry(
+  credentials: LoginCredentials,
+  maxAttempts = 3,
+  delayMs = 2000,
+): Promise<LoginResponse> {
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await axios.post(
+        `${apiClient.defaults.baseURL}/auth/login`,
+        credentials,
+        {
+          timeout: 60000, // 60 s — enough for a cold-starting Render server to wake up
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+      return response.data as LoginResponse;
+    } catch (err: any) {
+      lastError = err;
+
+      // Don't retry on auth errors — the credentials are wrong
+      const status = err.response?.status;
+      if (status === 401 || status === 403 || status === 400) {
+        throw err;
+      }
+
+      // Only retry on network/timeout errors
+      const isRetryable =
+        !err.response ||
+        err.code === 'ECONNABORTED' ||
+        err.code === 'ERR_NETWORK' ||
+        err.message?.includes('timeout') ||
+        err.message === 'Network Error';
+
+      if (!isRetryable || attempt === maxAttempts) {
+        throw err;
+      }
+
+      // Exponential back-off: 2 s, 4 s
+      await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+
+  throw lastError;
+}
+
 export const authApi = {
-  login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
-    console.log('Auth API - Making login request:', credentials);
-    const response = await apiClient.post('/auth/login', credentials);
-    console.log('Auth API - Login response:', response.data);
-    return response.data;
-  },
+  login: (credentials: LoginCredentials): Promise<LoginResponse> =>
+    loginWithRetry(credentials),
 
   logout: async (): Promise<void> => {
     try {
-      // Call the logout endpoint if available
       await apiClient.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout API call failed:', error);
-      // Continue with local cleanup even if API call fails
+    } catch {
+      // Continue with local cleanup even if the server call fails
     } finally {
-      // Always remove local authentication data
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
       sessionStorage.removeItem('authToken');
@@ -71,7 +114,6 @@ export const authApi = {
   },
 
   changePassword: async (request: ChangePasswordRequest): Promise<{ success: boolean; message: string }> => {
-    // The backend uses the authenticated user's ID
     const response = await apiClient.post('/password-change/change', request);
     return response.data;
   },

@@ -1,0 +1,6 @@
+import{a as e,c as r}from"./index-DByCI5uO.js";import{c as n}from"./cacheWrapper-D61m8SMw.js";const y={getAllBranches:async()=>(await e.get("/branches")).data,getBranchById:async a=>(await e.get(`/branches/${a}`)).data,getBranchHolidays:async(a,s)=>{const t={};return s&&(t.year=s),(await e.get(`/branches/${a}/holidays`,{params:t})).data},getBranchWorkingDays:async a=>(await e.get(`/branch-working-days/${a}/working-days`)).data,getAllBranchesCached:async()=>n("branches",async()=>{var s;const a=await e.get("/branches");return{success:a.data.success,data:((s=a.data.data)==null?void 0:s.branches)||[],message:a.data.message}},300*1e3),getBranchHolidaysCached:async a=>n("holidays",async()=>{var t;const s=await e.get(`/branches/${a}/holidays`);return{success:s.data.success,data:((t=s.data.data)==null?void 0:t.holidays)||[],message:s.data.message}},300*1e3)};/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const c=[["path",{d:"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4",key:"1uf3rs"}],["polyline",{points:"16 17 21 12 16 7",key:"1gabdz"}],["line",{x1:"21",x2:"9",y1:"12",y2:"12",key:"1uyos4"}]],h=r("log-out",c);export{h as L,y as b};

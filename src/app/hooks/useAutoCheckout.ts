@@ -13,117 +13,61 @@ interface UseAutoCheckoutReturn {
   wasAutoCheckedOut: boolean;
 }
 
-const AUTO_CHECKOUT_HOUR = 18; // 6 PM
-const AUTO_CHECKOUT_MINUTE = 30; // 30 minutes
-const AUTO_CHECKOUT_DELAY_MS = 5000; // 5 seconds after check-in
+const AUTO_CHECKOUT_HOUR = 18;
+const AUTO_CHECKOUT_MINUTE = 30;
 
-/**
- * Hook to handle automatic checkout
- * - Checks out users 5 seconds after they check in
- * - Also checks out any stale records at 6:30 PM
- * @param isEnabled - Whether the user is currently checked in
- * @param onCheckoutComplete - Callback to execute after successful auto-checkout
- */
+function getTodayDateString() {
+  return new Date().toISOString().split('T')[0];
+}
+
 export function useAutoCheckout({
   isEnabled,
   onCheckoutComplete,
 }: UseAutoCheckoutProps): UseAutoCheckoutReturn {
   const checkoutTriggeredRef = useRef(false);
   const lastCheckoutDateRef = useRef<string | null>(null);
+  const staleCheckDoneRef = useRef(false);
 
-  // Calculate the next auto-checkout time (today at 6:30 PM or tomorrow if already passed)
+  // Store latest callback in a ref so intervals never go stale without re-creating
+  const onCheckoutCompleteRef = useRef(onCheckoutComplete);
+  useEffect(() => {
+    onCheckoutCompleteRef.current = onCheckoutComplete;
+  });
+
   const getNextAutoCheckoutTime = useCallback(() => {
     const now = new Date();
     const checkoutTime = new Date();
     checkoutTime.setHours(AUTO_CHECKOUT_HOUR, AUTO_CHECKOUT_MINUTE, 0, 0);
-
-    // If checkout time has already passed today, schedule for tomorrow
-    if (now > checkoutTime) {
-      checkoutTime.setDate(checkoutTime.getDate() + 1);
-    }
-
+    if (now > checkoutTime) checkoutTime.setDate(checkoutTime.getDate() + 1);
     return checkoutTime;
   }, []);
 
-  // Get today's date string in YYYY-MM-DD format
-  const getTodayDateString = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
-  // Perform the auto-checkout (silent, no notifications)
   const performAutoCheckout = useCallback(async () => {
-    // Prevent multiple triggers on the same day
     const todayStr = getTodayDateString();
-    if (checkoutTriggeredRef.current || lastCheckoutDateRef.current === todayStr) {
-      return;
-    }
+    if (checkoutTriggeredRef.current || lastCheckoutDateRef.current === todayStr) return;
 
     try {
-      console.log('Auto-checkout triggered at', new Date().toLocaleTimeString());
-
-      const checkOutData = {
+      await attendanceApi.checkOut({
         date: todayStr,
         check_out_time: new Date().toTimeString().substring(0, 8),
         location_coordinates: null,
         location_address: 'Office (Auto)',
         is_auto_checkout: true,
-      };
-
-      await attendanceApi.checkOut(checkOutData);
-
-      // Mark as triggered to prevent duplicate checkouts
+      });
       checkoutTriggeredRef.current = true;
       lastCheckoutDateRef.current = todayStr;
-
-      // Execute callback if provided
-      if (onCheckoutComplete) {
-        onCheckoutComplete();
-      }
+      onCheckoutCompleteRef.current?.();
     } catch (error: any) {
       console.error('Auto-checkout failed:', error);
     }
-  }, [onCheckoutComplete]);
+  }, []);
 
-  // Perform immediate checkout after check-in (with delay)
-  const performImmediateCheckout = useCallback(async () => {
-    const todayStr = getTodayDateString();
-    
-    try {
-      console.log('Immediate auto-checkout triggered at', new Date().toLocaleTimeString());
-
-      const checkOutData = {
-        date: todayStr,
-        check_out_time: new Date().toTimeString().substring(0, 8),
-        location_coordinates: null,
-        location_address: 'Office (Auto)',
-        is_auto_checkout: true,
-      };
-
-      await attendanceApi.checkOut(checkOutData);
-
-      // Execute callback if provided
-      if (onCheckoutComplete) {
-        onCheckoutComplete();
-      }
-    } catch (error: any) {
-      console.error('Immediate auto-checkout failed:', error);
-    }
-  }, [onCheckoutComplete]);
-
-  // Check if it's time for auto-checkout
   const checkAndTriggerCheckout = useCallback(() => {
     const now = new Date();
     const checkoutTime = new Date();
     checkoutTime.setHours(AUTO_CHECKOUT_HOUR, AUTO_CHECKOUT_MINUTE, 0, 0);
-
     const todayStr = getTodayDateString();
 
-    // Check if:
-    // 1. Auto-checkout is enabled (user is checked in)
-    // 2. Current time is at or past checkout time (6:30 PM)
-    // 3. We haven't already triggered checkout today
-    // 4. User was checked in before checkout time
     if (
       isEnabled &&
       now >= checkoutTime &&
@@ -133,115 +77,87 @@ export function useAutoCheckout({
       performAutoCheckout();
     }
 
-    // Reset the trigger flag if it's a new day and user is not checked in
     if (!isEnabled && lastCheckoutDateRef.current !== todayStr) {
       checkoutTriggeredRef.current = false;
     }
   }, [isEnabled, performAutoCheckout]);
 
-  // Check for stale records from previous days that need checkout and perform auto-checkout
+  // Run stale-record fix once on mount (not every minute — it makes an API call)
   const checkAndFixStaleRecords = useCallback(async () => {
+    if (staleCheckDoneRef.current) return;
+    staleCheckDoneRef.current = true;
+
     const now = new Date();
-    const todayStr = getTodayDateString();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const isPastAutoCheckoutTime = currentHour > AUTO_CHECKOUT_HOUR || (currentHour === AUTO_CHECKOUT_HOUR && currentMinute >= AUTO_CHECKOUT_MINUTE);
-    
+    const isPastAutoCheckoutTime =
+      now.getHours() > AUTO_CHECKOUT_HOUR ||
+      (now.getHours() === AUTO_CHECKOUT_HOUR && now.getMinutes() >= AUTO_CHECKOUT_MINUTE);
+
     if (!isPastAutoCheckoutTime) return;
-    
+
     try {
-      // Fetch recent attendance records to check for stale ones
-      const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-      const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
-      
+      const todayStr = getTodayDateString();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
       const response = await attendanceApi.getMyAttendance({ startDate, endDate, limit: 31 });
-      const records = response.data?.attendance || [];
-      
-      // Find stale records (from previous days OR today, still checked in)
-      const staleRecords = records.filter((r: any) => {
-        const recordDate = r.date.split('T')[0];
-        return r.check_in_time && !r.check_out_time;
-      });
-      
-      if (staleRecords.length > 0) {
-        console.log(`Found ${staleRecords.length} stale record(s), auto-checking out...`);
-        
-        // Auto-checkout for each stale record
-        for (const staleRecord of staleRecords) {
-          try {
-            const recordDate = staleRecord.date.split('T')[0];
-            const isTodayRecord = recordDate === todayStr;
-            
-            const checkOutData = {
-              date: recordDate,
-              check_out_time: isTodayRecord ? new Date().toTimeString().substring(0, 8) : '18:30:00',
-              location_coordinates: null,
-              location_address: 'Office (Auto)',
-              is_auto_checkout: true,
-            };
-            
-            await attendanceApi.checkOut(checkOutData);
-            
-            // Notify parent to refresh (silently, no toast)
-            if (onCheckoutComplete) {
-              onCheckoutComplete();
-            }
-          } catch (checkoutError: any) {
-            console.error(`Failed to checkout stale record ${staleRecord.id}:`, checkoutError);
-          }
+      const records: any[] = response.data?.attendance || [];
+
+      const staleRecords = records.filter(
+        (r: any) => r.check_in_time && !r.check_out_time
+      );
+
+      for (const staleRecord of staleRecords) {
+        try {
+          const recordDate: string = staleRecord.date.split('T')[0];
+          const isTodayRecord = recordDate === todayStr;
+          await attendanceApi.checkOut({
+            date: recordDate,
+            check_out_time: isTodayRecord ? new Date().toTimeString().substring(0, 8) : '18:30:00',
+            location_coordinates: null,
+            location_address: 'Office (Auto)',
+            is_auto_checkout: true,
+          });
+          onCheckoutCompleteRef.current?.();
+        } catch (checkoutError: any) {
+          console.error(`Failed to checkout stale record ${staleRecord.id}:`, checkoutError);
         }
       }
     } catch (error) {
       console.error('Error checking for stale records:', error);
     }
-  }, [onCheckoutComplete]);
+  }, []);
 
   useEffect(() => {
-    // Check immediately when component mounts or isEnabled changes
     checkAndTriggerCheckout();
     checkAndFixStaleRecords();
 
-    // Set up interval to check every minute
-    const intervalId = setInterval(() => {
-      checkAndTriggerCheckout();
-      checkAndFixStaleRecords();
-    }, 60000); // Check every minute
+    const intervalId = setInterval(checkAndTriggerCheckout, 60000);
 
-    // Also check more frequently around checkout time (every 10 seconds between 6:25 and 6:35)
     const now = new Date();
     const isNearCheckoutTime =
-      now.getHours() === 18 && now.getMinutes() >= 25 && now.getMinutes() <= 35;
+      now.getHours() === AUTO_CHECKOUT_HOUR &&
+      now.getMinutes() >= 25 &&
+      now.getMinutes() <= 35;
 
-    let rapidCheckIntervalId: NodeJS.Timeout | null = null;
+    let rapidCheckIntervalId: ReturnType<typeof setInterval> | null = null;
     if (isNearCheckoutTime && isEnabled) {
-      rapidCheckIntervalId = setInterval(() => {
-        checkAndTriggerCheckout();
-        checkAndFixStaleRecords();
-      }, 10000); // Check every 10 seconds near checkout time
+      rapidCheckIntervalId = setInterval(checkAndTriggerCheckout, 10000);
     }
 
     return () => {
       clearInterval(intervalId);
-      if (rapidCheckIntervalId) {
-        clearInterval(rapidCheckIntervalId);
-      }
+      if (rapidCheckIntervalId) clearInterval(rapidCheckIntervalId);
     };
   }, [isEnabled, checkAndTriggerCheckout, checkAndFixStaleRecords]);
 
-  // Reset trigger flag when user manually checks in
   useEffect(() => {
     if (isEnabled) {
       const todayStr = getTodayDateString();
-      // Only reset if it's a new day
       if (lastCheckoutDateRef.current !== todayStr) {
         checkoutTriggeredRef.current = false;
       }
     }
   }, [isEnabled]);
-
-  // NOTE: Removed immediate checkout (5 seconds after check-in)
-  // This was defeating the purpose of time tracking!
-  // Users should be checked out at end of day (6:30 PM), not immediately after check-in
 
   return {
     isAutoCheckoutEnabled: isEnabled,

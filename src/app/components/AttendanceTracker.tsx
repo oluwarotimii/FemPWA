@@ -4,9 +4,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Card } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, isWeekend, parseISO } from "date-fns";
-import { attendanceApi } from "@/app/services/api";
-import { apiClient } from "@/app/services/api/apiClient";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay } from "date-fns";
+import { attendanceApi, apiClient } from "@/app/services/api";
+import { useAuth } from "@/app/contexts/AuthContext";
 
 // Live attendance data with various statuses
 interface AttendanceRecord {
@@ -174,6 +174,7 @@ function StatsBar({ records }: StatsBarProps) {
 }
 
 export default function AttendanceTracker() {
+  const { user } = useAuth();
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(today);
   const [selectedDay, setSelectedDay] = useState<{ date: Date; record?: AttendanceRecord } | null>(null);
@@ -181,56 +182,47 @@ export default function AttendanceTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [branchWorkingDays, setBranchWorkingDays] = useState<Record<string, boolean>>({});
-  const [userBranchId, setUserBranchId] = useState<number | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Fetch attendance records for current month
   useEffect(() => {
     const fetchAttendanceData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch user's branch and working days
-        const userResponse = await apiClient.get('/users/me');
-        const userData = userResponse.data;
-        if (userData.data?.user?.branch_id) {
-          setUserBranchId(userData.data.user.branch_id);
-          
-          const workingDaysResponse = await apiClient.get(`/branch-working-days?branchId=${userData.data.user.branch_id}`);
-          const workingDaysData = workingDaysResponse.data;
-          
-          if (workingDaysData.data?.workingDays) {
-            const workingDaysMap: Record<string, boolean> = {};
-            workingDaysData.data.workingDays.forEach((day: any) => {
-              workingDaysMap[day.day_of_week] = day.is_working_day;
-            });
-            setBranchWorkingDays(workingDaysMap);
-          }
+        const branchId = user?.branchId;
+        const [workingDaysRes, attendanceRes] = await Promise.allSettled([
+          branchId
+            ? apiClient.get(`/branch-working-days?branchId=${branchId}`)
+            : Promise.resolve(null),
+          attendanceApi.getMyAttendance({
+            startDate: format(startOfMonth(currentDate), 'yyyy-MM-dd'),
+            endDate: format(endOfMonth(currentDate), 'yyyy-MM-dd'),
+          }),
+        ]);
+
+        if (workingDaysRes.status === 'fulfilled' && workingDaysRes.value?.data?.data?.workingDays) {
+          const workingDaysMap: Record<string, boolean> = {};
+          workingDaysRes.value.data.data.workingDays.forEach((day: any) => {
+            workingDaysMap[day.day_of_week] = day.is_working_day;
+          });
+          setBranchWorkingDays(workingDaysMap);
         }
 
-        // Format dates for API request
-        const startDate = format(startOfMonth(currentDate), 'yyyy-MM-dd');
-        const endDate = format(endOfMonth(currentDate), 'yyyy-MM-dd');
-
-        // Fetch attendance records from API
-        const response = await attendanceApi.getMyAttendance({
-          startDate,
-          endDate
-        });
-
-        // Convert API response to our local format
-        const records = response.data.attendance.map(apiRecord => ({
-          date: apiRecord.date,
-          clockIn: apiRecord.check_in_time,
-          clockOut: apiRecord.check_out_time || undefined,
-          status: apiRecord.status as "present" | "late" | "absent" | "early-departure" | "holiday" | "weekend" | "leave" | "half_day",
-          is_auto_checkout: (apiRecord as any).is_auto_checkout,
-        }));
-
-        setAttendanceRecords(records);
+        if (attendanceRes.status === 'fulfilled') {
+          const records = attendanceRes.value.data.attendance.map((apiRecord: any) => ({
+            date: apiRecord.date,
+            clockIn: apiRecord.check_in_time,
+            clockOut: apiRecord.check_out_time || undefined,
+            status: apiRecord.status as AttendanceRecord['status'],
+            is_auto_checkout: apiRecord.is_auto_checkout,
+          }));
+          setAttendanceRecords(records);
+        } else {
+          throw attendanceRes.reason;
+        }
       } catch (err) {
         console.error('Error fetching attendance data:', err);
         setError('Failed to load attendance data. Please try again later.');
@@ -241,7 +233,7 @@ export default function AttendanceTracker() {
     };
 
     fetchAttendanceData();
-  }, [currentDate]);
+  }, [currentDate, user?.branchId]);
 
   const recordMap = new Map(attendanceRecords.map((r) => {
     const localDate = format(new Date(r.date), "yyyy-MM-dd");
