@@ -179,7 +179,12 @@ function LeaderboardRow({
           )}
         </div>
       </div>
-      <Badge variant={entry.points >= 0 ? 'secondary' : 'destructive'}>{entry.points}</Badge>
+      <div className="flex flex-col items-end gap-0.5">
+        <Badge variant={entry.points >= 0 ? 'secondary' : 'destructive'}>{entry.points}</Badge>
+        {entry.avg_check_in_time && (
+          <span className="text-[10px] text-gray-400">{entry.avg_check_in_time}</span>
+        )}
+      </div>
     </div>
   );
 }
