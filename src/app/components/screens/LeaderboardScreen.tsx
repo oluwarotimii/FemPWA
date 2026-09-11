@@ -19,6 +19,7 @@ export function LeaderboardScreen() {
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Changing period with a stale offset (e.g. "-3" from Week) would silently
   // jump to an unrelated month/year 3 periods back — always reset to current.
@@ -30,10 +31,19 @@ export function LeaderboardScreen() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     leaderboardApi
       .getLeaderboard(period, offset)
       .then((res) => {
-        if (!cancelled && res.success) setData(res.data);
+        if (cancelled) return;
+        if (res.success) {
+          setData(res.data);
+        } else {
+          setError((res as any).message || 'Something went wrong');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.response?.data?.message || err?.message || 'Something went wrong');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -116,6 +126,10 @@ export function LeaderboardScreen() {
             <div className="p-8 flex items-center justify-center gap-2 text-gray-500">
               <Loader2 className="w-5 h-5 animate-spin" />
               Loading…
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center text-red-600 text-sm">
+              Couldn't load leaderboard: {error}
             </div>
           ) : entries.length === 0 ? (
             <div className="p-8 text-center text-gray-500 text-sm">
