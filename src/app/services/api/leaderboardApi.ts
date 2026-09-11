@@ -14,6 +14,7 @@ export interface LeaderboardEntry {
   leave_days: number;
   early_departure_days: number;
   points: number;
+  avg_check_in_time: string | null;
   rank: number;
 }
 
