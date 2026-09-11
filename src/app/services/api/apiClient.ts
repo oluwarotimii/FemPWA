@@ -51,13 +51,22 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401) {
       const isLoginOrRefresh =
         originalRequest?.url?.includes('/auth/login') ||
         originalRequest?.url?.includes('/auth/refresh');
       const isLoginPage = window.location.pathname === '/login';
 
       if (isLoginOrRefresh || isLoginPage) {
+        return Promise.reject(error);
+      }
+
+      // A request that was already retried once with a fresh token and still
+      // got a 401 means the session is genuinely dead (or was revoked mid-flight).
+      // Retrying again would risk a silent loop, so force a clean logout instead
+      // of leaving the user stuck on a broken screen with a raw error message.
+      if (originalRequest._retry) {
+        clearAuthAndRedirect();
         return Promise.reject(error);
       }
 
@@ -71,6 +80,7 @@ apiClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then((token) => {
+          originalRequest._retry = true;
           originalRequest.headers.Authorization = `Bearer ${token}`;
           return apiClient(originalRequest);
         });
@@ -82,7 +92,8 @@ apiClient.interceptors.response.use(
       try {
         const response = await axios.post(
           `${apiClient.defaults.baseURL}/auth/refresh`,
-          { refreshToken }
+          { refreshToken },
+          { timeout: 15000 }
         );
 
         if (response.data?.success && response.data?.data?.tokens) {
@@ -95,9 +106,17 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         }
         throw new Error('Token refresh failed');
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError, null);
-        clearAuthAndRedirect();
+        // Only a genuine answer from the server ("this refresh token is
+        // invalid/expired/revoked") should sign the user out. A network
+        // blip or timeout while refreshing must NOT nuke the session — that
+        // was forcing people to log back in far more often than their
+        // token had actually expired. Let this one request fail; the next
+        // successful request will retry the whole refresh flow naturally.
+        if (refreshError?.response) {
+          clearAuthAndRedirect();
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

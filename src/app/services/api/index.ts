@@ -12,4 +12,5 @@ export { holidayApi } from './holidayApi';
 export { leavePolicyApi } from './leavePolicyApi';
 export { floatingDayApi } from './floatingDayApi';
 export { syncApi } from './syncApi';
+export { leaderboardApi } from './leaderboardApi';
 export { default as apiClient } from './apiClient';
