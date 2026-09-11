@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { authApi, staffApi } from '@/app/services/api';
 import { setToken } from '@/app/services/api/apiClient';
+import { dataStore } from '@/app/services/offline/dataStore';
 
 interface User {
   id: number;
@@ -250,8 +251,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('permissions');
       localStorage.removeItem('tokenExpiry');
       localStorage.removeItem('userData');
+      localStorage.removeItem('shift_exception_disclaimer_dismissed');
+      localStorage.removeItem('attendance_debug');
       sessionStorage.removeItem('authToken');
       sessionStorage.removeItem('userId');
+      // Dashboard's own sessionStorage cache (separate from dataStore/IndexedDB).
+      sessionStorage.removeItem('cached_assigned_locations');
+      sessionStorage.removeItem('cached_branch_info');
+
+      // Without these, the previous user's cached attendance/leave/staff data
+      // (IndexedDB) and any stale API responses (service-worker HTTP cache)
+      // remain on the device and can surface to whoever logs in next.
+      try {
+        await dataStore.clear();
+      } catch (error) {
+        console.error('Failed to clear offline data store on logout:', error);
+      }
+      if ('caches' in window) {
+        try {
+          await caches.delete('api-cache');
+        } catch (error) {
+          console.error('Failed to clear API cache on logout:', error);
+        }
+      }
     }
   };
 

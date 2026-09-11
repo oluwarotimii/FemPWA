@@ -7,6 +7,7 @@ import { BottomNavigation } from '@/app/components/BottomNavigation';
 import { PWAInstallPrompt } from '@/app/components/PWAInstallPrompt';
 import { PullToRefresh } from '@/app/components/PullToRefresh';
 import { DevTools } from '@/app/components/DevTools';
+import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 
 // Eagerly loaded — shown during auth loading / on the login path
 import { LoginScreen } from '@/app/components/screens/LoginScreen';
@@ -30,6 +31,7 @@ const FillPersonalDetailsScreen = lazy(() => import('@/app/components/screens/Fi
 const StaffDetailsFormScreen = lazy(() => import('@/app/components/screens/StaffDetailsFormScreen').then(m => ({ default: m.StaffDetailsFormScreen })));
 const HolidaysScreen = lazy(() => import('@/app/components/screens/HolidaysScreen').then(m => ({ default: m.HolidaysScreen })));
 const FloatingDayScreen = lazy(() => import('@/app/components/screens/FloatingDayScreen').then(m => ({ default: m.FloatingDayScreen })));
+const LeaderboardScreen = lazy(() => import('@/app/components/screens/LeaderboardScreen').then(m => ({ default: m.LeaderboardScreen })));
 const GuarantorPage = lazy(() => import('@/app/pages/GuarantorPage').then(m => ({ default: m.GuarantorPage })));
 const NotFoundScreen = lazy(() => import('@/app/components/screens/NotFoundScreen').then(m => ({ default: m.NotFoundScreen })));
 
@@ -245,6 +247,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/leaderboard"
+        element={
+          <ProtectedRoute>
+            <LeaderboardScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/guarantors"
         element={
           <ProtectedRoute>
@@ -266,7 +276,9 @@ export default function App() {
         <AuthProvider>
           <div className="min-h-screen bg-gray-50">
             <PWAInstallPrompt />
-            <AppRoutes />
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
             <Toaster position="top-center" richColors />
             <DevTools />
           </div>

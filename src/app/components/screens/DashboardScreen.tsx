@@ -362,9 +362,17 @@ export function DashboardScreen() {
     setPendingCount(count);
   }, []);
 
+  const MAX_SYNC_RETRIES = 5;
+
   const syncPendingItems = useCallback(async () => {
     const items = await offlineQueue.getAll();
     for (const item of items) {
+      // A mutation that has already failed this many times is treated as
+      // permanently stuck (e.g. a stale/invalid payload) — without this cap
+      // it would otherwise be retried forever on every future reconnect.
+      if (item.retryCount >= MAX_SYNC_RETRIES) {
+        continue;
+      }
       try {
         if (item.type === 'check-in') {
           await attendanceApi.checkIn(item.payload);
@@ -378,6 +386,11 @@ export function DashboardScreen() {
       } catch {
         if (item.id !== undefined) {
           await offlineQueue.incrementRetry(item.id);
+          if (item.retryCount + 1 >= MAX_SYNC_RETRIES) {
+            toast.error(`Could not sync a pending ${item.type === 'check-in' ? 'check-in' : 'check-out'}`, {
+              description: 'This entry failed repeatedly and has stopped retrying. Please contact HR if this persists.',
+            });
+          }
         }
       }
     }
