@@ -26,12 +26,17 @@ export function NotificationsScreen() {
     fetchNotifications();
   }, []);
 
-  const handleMarkAllRead = () => {
-    // In a real implementation, this would call an API endpoint
+  const handleMarkAllRead = async () => {
+    const unread = notificationsList.filter((n) => !n.opened_at);
     setNotificationsList((prev) =>
-      prev.map((notif) => ({ ...notif, is_read: true }))
+      prev.map((notif) => ({ ...notif, opened_at: notif.opened_at ?? new Date().toISOString() }))
     );
-    toast.success('All notifications marked as read');
+    try {
+      await Promise.all(unread.map((n) => notificationApi.markAsRead(n.id)));
+      toast.success('All notifications marked as read');
+    } catch {
+      toast.error('Some notifications could not be marked as read');
+    }
   };
 
   const handleAcceptShift = (id: number) => {
@@ -45,16 +50,11 @@ export function NotificationsScreen() {
   };
 
   const getIcon = (type: string) => {
-    switch (type) {
-      case 'shift':
-        return <Calendar className="w-5 h-5 text-blue-600" />;
-      case 'leave':
-        return <CheckCheck className="w-5 h-5 text-green-600" />;
-      case 'system':
-        return <Info className="w-5 h-5 text-gray-600" />;
-      default:
-        return <Bell className="w-5 h-5 text-gray-600" />;
-    }
+    const t = (type || '').toLowerCase();
+    if (t.includes('shift')) return <Calendar className="w-5 h-5 text-blue-600" />;
+    if (t.includes('leave')) return <CheckCheck className="w-5 h-5 text-green-600" />;
+    if (t.includes('system') || t.includes('announcement')) return <Info className="w-5 h-5 text-gray-600" />;
+    return <Bell className="w-5 h-5 text-gray-600" />;
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -70,7 +70,7 @@ export function NotificationsScreen() {
     return `${diffDays} days ago`;
   };
 
-  const unreadCount = notificationsList.filter((n) => !n.is_read).length;
+  const unreadCount = notificationsList.filter((n) => !n.opened_at).length;
 
   if (loading) {
     return (
@@ -120,14 +120,22 @@ export function NotificationsScreen() {
           notificationsList.map((notification) => (
             <Card
               key={notification.id}
-              className={`shadow-md hover:shadow-lg transition-shadow ${
-                !notification.is_read ? 'border-l-4 border-l-blue-600' : ''
+              onClick={() => {
+                if (notification.opened_at) return;
+                const now = new Date().toISOString();
+                setNotificationsList((prev) =>
+                  prev.map((n) => (n.id === notification.id ? { ...n, opened_at: now } : n))
+                );
+                notificationApi.markAsRead(notification.id).catch(() => {});
+              }}
+              className={`shadow-md hover:shadow-lg transition-shadow cursor-pointer ${
+                !notification.opened_at ? 'border-l-4 border-l-blue-600' : ''
               }`}
             >
               <CardContent className="p-4">
                 <div className="flex gap-3">
                   <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    {getIcon(notification.type)}
+                    {getIcon(notification.notification_type)}
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -135,7 +143,7 @@ export function NotificationsScreen() {
                       <h3 className="font-semibold text-gray-900 text-sm">
                         {notification.title}
                       </h3>
-                      {!notification.is_read && (
+                      {!notification.opened_at && (
                         <Badge className="bg-blue-600 hover:bg-blue-700 text-xs">
                           New
                         </Badge>
