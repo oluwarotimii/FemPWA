@@ -200,6 +200,22 @@ export function ProfileScreen() {
     return `${baseUrl}/staff-documents${filePath}`;
   };
 
+  // The file-serving route requires auth, so a plain <a href> to it 401s.
+  // Fetch it as a blob via apiClient (which attaches the auth header) and
+  // open that instead.
+  const handleViewDocument = async (filePath: string) => {
+    try {
+      const response = await apiClient.get(getFileUrl(filePath), { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (error: any) {
+      toast.error('Failed to open document', {
+        description: error.response?.data?.message || 'Please try again.'
+      });
+    }
+  };
+
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.includes('pdf')) return 'PDF';
     if (mimeType?.includes('word') || mimeType?.includes('document')) return 'DOC';
@@ -570,14 +586,12 @@ export function ProfileScreen() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <a
-                      href={getFileUrl(doc.file_path)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => handleViewDocument(doc.file_path)}
                       className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       <Download className="w-4 h-4" />
-                    </a>
+                    </button>
                     <button
                       onClick={() => handleCVDelete(doc.id)}
                       className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
