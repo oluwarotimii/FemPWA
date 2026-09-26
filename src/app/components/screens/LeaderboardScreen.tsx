@@ -138,10 +138,10 @@ export function LeaderboardScreen() {
           ) : (
             <>
               {topEntries.map((entry) => (
-                <LeaderboardRow key={entry.user_id} entry={entry} isCurrentUser={entry.user_id === user?.id} showBranch={scope === 'company'} />
+                <LeaderboardRow key={entry.user_id} entry={entry} isCurrentUser={entry.user_id === user?.id} showBranch={scope === 'company'} showAvgTime={period !== 'year'} />
               ))}
               {currentUserEntry && !currentUserInTop && (
-                <LeaderboardRow entry={currentUserEntry} isCurrentUser showBranch={scope === 'company'} pinned />
+                <LeaderboardRow entry={currentUserEntry} isCurrentUser showBranch={scope === 'company'} showAvgTime={period !== 'year'} pinned />
               )}
             </>
           )}
@@ -155,10 +155,12 @@ function LeaderboardRow({
   entry,
   isCurrentUser,
   showBranch,
+  showAvgTime,
   pinned = false,
 }: {
   entry: LeaderboardEntry;
   isCurrentUser: boolean;
+  showAvgTime: boolean;
   showBranch: boolean;
   pinned?: boolean;
 }) {
@@ -181,7 +183,7 @@ function LeaderboardRow({
       </div>
       <div className="flex flex-col items-end gap-0.5">
         <Badge variant={entry.points >= 0 ? 'secondary' : 'destructive'}>{entry.points}</Badge>
-        {entry.avg_check_in_time && (
+        {showAvgTime && entry.avg_check_in_time && (
           <span className="text-[10px] text-gray-400">{entry.avg_check_in_time}</span>
         )}
       </div>

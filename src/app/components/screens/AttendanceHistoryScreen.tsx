@@ -26,7 +26,7 @@ interface CalendarDayRecord {
   date: string;
   clockIn?: string;
   clockOut?: string;
-  status: "present" | "late" | "absent" | "early-departure" | "holiday" | "weekend" | "leave" | "half_day";
+  status: "present" | "late" | "absent" | "early-departure" | "holiday" | "weekend" | "off" | "leave" | "half_day";
   lateBy?: number;
   leftEarly?: number;
   isHoliday?: boolean;
@@ -44,6 +44,7 @@ const statusColors: Record<string, string> = {
   "early-departure": "bg-blue-500/40 border-blue-600",
   holiday: "bg-purple-500/40 border-purple-600",
   weekend: "bg-gray-300/40 border-gray-400",
+  off: "bg-indigo-400/40 border-indigo-500",
   leave: "bg-cyan-500/40 border-cyan-600",
   half_day: "bg-orange-500/40 border-orange-600",
 };
@@ -55,6 +56,7 @@ const statusLabels: Record<string, string> = {
   "early-departure": "Early Departure",
   holiday: "Holiday",
   weekend: "Weekend",
+  off: "Off Day",
   leave: "On Leave",
   half_day: "Half Day",
 };

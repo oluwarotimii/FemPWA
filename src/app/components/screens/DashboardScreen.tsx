@@ -657,9 +657,23 @@ export function DashboardScreen() {
 
   return (
     <div className="p-4 pt-7 pb-20 max-w-2xl mx-auto space-y-6">
-      {/* Connectivity Bar */}
+      {/* Connectivity Bar — tap when items are stuck pending to discard them */}
       <div
+        onClick={async () => {
+          if (pendingCount === 0) return;
+          const ok = window.confirm(
+            `You have ${pendingCount} pending clock-in/out ${pendingCount === 1 ? 'action' : 'actions'} that ${pendingCount === 1 ? "hasn't" : "haven't"} synced. ` +
+            `Discard ${pendingCount === 1 ? 'it' : 'them'}? Only do this if you know the recorded time is stale or wrong — this cannot be undone.`
+          );
+          if (ok) {
+            await offlineQueue.clear();
+            await refreshPendingCount();
+            toast.success('Pending sync items cleared');
+          }
+        }}
         className={`fixed top-0 left-0 right-0 z-50 text-center text-[10px] font-medium py-0.5 transition-colors flex items-center justify-center gap-2 ${
+          pendingCount > 0 ? 'cursor-pointer' : ''
+        } ${
           isOnline
             ? pendingCount > 0
               ? 'bg-amber-500/20 text-amber-700'
@@ -669,9 +683,9 @@ export function DashboardScreen() {
       >
         {isOnline
           ? pendingCount > 0
-            ? `${pendingCount} pending — syncing...`
+            ? `${pendingCount} pending — syncing... (tap to discard)`
             : 'Connected'
-          : `Offline — ${pendingCount > 0 ? `${pendingCount} pending` : 'changes will sync when reconnected'}`
+          : `Offline — ${pendingCount > 0 ? `${pendingCount} pending (tap to discard)` : 'changes will sync when reconnected'}`
         }
       </div>
       {/* Header */}
