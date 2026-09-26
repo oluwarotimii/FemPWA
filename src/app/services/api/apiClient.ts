@@ -45,6 +45,52 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Refresh tokens are rotated server-side (the old one is revoked the instant
+// a new one is issued), so two browser tabs racing to refresh the same
+// stored refresh token is a real scenario — people commonly leave the PWA
+// open in multiple tabs. Without cross-tab coordination, the loser tab gets
+// TOKEN_REVOKED and force-logs-out everyone, even though the session is
+// actually fine (another tab just renewed it). The Web Locks API serializes
+// the actual network refresh across every tab of the same origin; a tab that
+// loses the race just re-reads localStorage instead of nuking the session.
+async function refreshTokensCoordinated(staleAccessToken: string | null): Promise<string> {
+  const doRefresh = async (): Promise<string> => {
+    // Another tab may have already refreshed while we were waiting for the
+    // lock (or for our turn in the queue) — if the stored token has already
+    // moved on from the one that just 401'd, use it instead of refreshing again.
+    const currentToken = localStorage.getItem('authToken');
+    if (currentToken && currentToken !== staleAccessToken) {
+      setToken(currentToken);
+      return currentToken;
+    }
+
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      throw Object.assign(new Error('No refresh token'), { response: { status: 401 } });
+    }
+
+    const response = await axios.post(
+      `${apiClient.defaults.baseURL}/auth/refresh`,
+      { refreshToken },
+      { timeout: 15000 }
+    );
+
+    if (response.data?.success && response.data?.data?.tokens) {
+      const { accessToken: newAccess, refreshToken: newRefresh } = response.data.data.tokens;
+      setToken(newAccess);
+      localStorage.setItem('authToken', newAccess);
+      if (newRefresh) localStorage.setItem('refreshToken', newRefresh);
+      return newAccess;
+    }
+    throw new Error('Token refresh failed');
+  };
+
+  if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+    return navigator.locks.request('femtech-token-refresh', doRefresh);
+  }
+  return doRefresh();
+}
+
 // Response interceptor — handle 401 with token refresh
 apiClient.interceptors.response.use(
   (response) => response,
@@ -88,32 +134,27 @@ apiClient.interceptors.response.use(
 
       originalRequest._retry = true;
       isRefreshing = true;
+      const staleAccessToken = getToken();
 
       try {
-        const response = await axios.post(
-          `${apiClient.defaults.baseURL}/auth/refresh`,
-          { refreshToken },
-          { timeout: 15000 }
-        );
-
-        if (response.data?.success && response.data?.data?.tokens) {
-          const { accessToken: newAccess, refreshToken: newRefresh } = response.data.data.tokens;
-          setToken(newAccess);
-          localStorage.setItem('authToken', newAccess);
-          if (newRefresh) localStorage.setItem('refreshToken', newRefresh);
-          processQueue(null, newAccess);
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`;
-          return apiClient(originalRequest);
-        }
-        throw new Error('Token refresh failed');
+        const newAccess = await refreshTokensCoordinated(staleAccessToken);
+        processQueue(null, newAccess);
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        return apiClient(originalRequest);
       } catch (refreshError: any) {
         processQueue(refreshError, null);
-        // Only a genuine answer from the server ("this refresh token is
-        // invalid/expired/revoked") should sign the user out. A network
-        // blip or timeout while refreshing must NOT nuke the session — that
-        // was forcing people to log back in far more often than their
-        // token had actually expired. Let this one request fail; the next
-        // successful request will retry the whole refresh flow naturally.
+        // Before giving up, check one more time whether a sibling tab
+        // (holding the lock ahead of us, or racing independently) already
+        // landed a fresh token — only a genuinely stale/dead session should
+        // sign the user out. A network blip or timeout while refreshing must
+        // NOT nuke the session either — that was forcing people to log back
+        // in far more often than their token had actually expired.
+        const latestToken = localStorage.getItem('authToken');
+        if (latestToken && latestToken !== staleAccessToken) {
+          setToken(latestToken);
+          originalRequest.headers.Authorization = `Bearer ${latestToken}`;
+          return apiClient(originalRequest);
+        }
         if (refreshError?.response) {
           clearAuthAndRedirect();
         }
