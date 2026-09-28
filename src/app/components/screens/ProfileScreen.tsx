@@ -206,7 +206,7 @@ export function ProfileScreen() {
   const handleViewDocument = async (filePath: string) => {
     try {
       const response = await apiClient.get(getFileUrl(filePath), { responseType: 'blob' });
-      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const blobUrl = window.URL.createObjectURL(response.data);
       window.open(blobUrl, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (error: any) {
